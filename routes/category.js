@@ -30,12 +30,17 @@ router.get(
   asyncHandler(async (req, res) => {
     try {
       const categoryID = req.params.id;
-      const category = Category.findById(categoryID);
+      const category = await Category.findById(categoryID);
       if (!category) {
         return res
           .status(404)
           .json({ success: false, message: "Category not found" });
       }
+      res.json({
+        success: true,
+        message: "Category retrieved successfully.",
+        data: category,
+      });
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
     }
@@ -159,14 +164,14 @@ router.delete(
 
     const subCategories = await SubCategory.find({ categoryId: categoryID });
     if (subCategories.length > 0) {
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: "Cannot delete Category, subCategories are referencing it.",
       });
     }
     const products = await Product.find({ proCategoryId: categoryID });
     if (products.length > 0) {
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         message: "Cannot delete Category, products are referencing it.",
       });

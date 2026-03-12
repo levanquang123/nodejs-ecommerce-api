@@ -60,7 +60,7 @@ router.post(
     if (exitsSubCategory) {
       return res.json({
         success: false,
-        message: "SubCategory has alrealdy exist",
+        message: "SubCategory has already exist",
       });
     }
     const newSubCategory = new SubCategory({
@@ -122,7 +122,7 @@ router.delete(
     }
 
     const products = await Product.countDocuments({
-      proBrandId: subCategoryID,
+      proSubCategoryId: subCategoryID,
     });
     if (products > 0) {
       return res.status(400).json({

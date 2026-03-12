@@ -23,7 +23,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const userID = req.params.id;
     const user = await User.findById(userID);
-    if (!userID) {
+    if (!user) {
       return res
         .status(404)
         .json({ success: false, message: "User not found" });
@@ -107,7 +107,7 @@ router.put(
       updateUser.name = name;
     }
     if (password) {
-      updateUser.password = password;
+      updateUser.password = await bcrypt.hash(password, 10);
     }
     const user = await User.findByIdAndUpdate(userID, updateUser, {
       new: true,
@@ -131,12 +131,12 @@ router.delete(
   "/:id",
   asyncHandler(async (req, res) => {
     const userID = req.params.id;
-    if (!userID) {
+    const user = await User.findByIdAndDelete(userID);
+    if (!user) {
       return res
         .status(404)
         .json({ success: false, message: "User not found" });
     }
-    const user = await User.findByIdAndDelete(userID);
     res.json({
       success: true,
       message: "Delete user successfully.",
