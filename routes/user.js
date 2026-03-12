@@ -92,6 +92,7 @@ router.post(
     res.json({
       success: true,
       message: "User login successfully.",
+      data: user,
     });
   })
 );
