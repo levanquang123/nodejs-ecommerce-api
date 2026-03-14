@@ -13,42 +13,49 @@ const client = new OneSignal.Client(
 
 router.post(
   "/send-notification",
-  asyncHandler(async (req, res) => {
-    const { title, description, imageUrl } = req.body;
+  asyncHandler(async (req, res) => {    const { title, description, imageUrl } = req.body;
 
-    const notificationBody = {
-      contents: { en: description },
-      headings: { en: title },
-      included_segments: ["All"],
-      ...(imageUrl && { big_picture: imageUrl }),
-    };
+  const notificationBody = {
+    contents: { en: description },
+    headings: { en: title },
+    included_segments: ["All"],
+    ...(imageUrl && { 
+      big_picture: imageUrl,      
+      adm_big_picture: imageUrl,  
+      chrome_web_image: imageUrl, 
+      ios_attachments: {          
+        "id1": imageUrl 
+      }
+    }),
+  };
 
-    const response = await client.createNotification(notificationBody);
+    try {
+      const response = await client.createNotification(notificationBody);
+      
+      const notificationId = response.body?.id || response.id;
 
-    const notificationId = response.id || response.body?.id;
+      if (!notificationId) {
+        throw new Error("OneSignal failed to return a notification ID");
+      }
 
-    if (!notificationId) {
-      return res.status(500).json({
+      const newNotification = await Notification.create({
+        notificationId: notificationId, 
+        title,
+        description,
+        imageUrl,
+      });
+
+      res.json({
+        success: true,
+        message: "Notification sent successfully",
+        data: newNotification,
+      });
+    } catch (error) {
+      res.status(500).json({
         success: false,
-        message: "OneSignal did not return notificationId",
-        data: response,
+        message: error.message || "Failed to send notification",
       });
     }
-
-    console.log("Notification sent to all users:", notificationId);
-
-    await Notification.create({
-      notificationId,
-      title,
-      description,
-      imageUrl,
-    });
-
-    res.json({
-      success: true,
-      message: "Notification sent successfully",
-      data: { notificationId },
-    });
   })
 );
 
