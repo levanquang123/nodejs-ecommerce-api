@@ -3,26 +3,32 @@ const bodyParser = require("body-parser");
 const asyncHandler = require("express-async-handler");
 const cors = require("cors");
 const dotenv = require("dotenv");
-dotenv.config();
 const mongoose = require("mongoose");
 
+dotenv.config();
+
 const app = express();
+const PORT = process.env.PORT;
+const URL = process.env.MONGO_URL;
+
+if (!URL) {
+  throw new Error("MONGO_URL is missing in .env");
+}
 
 app.use(cors({ origin: "*" }));
 app.use(bodyParser.json());
 
-//setting static folder path
+// setting static folder path
 app.use("/image/products", express.static("public/products"));
 app.use("/image/category", express.static("public/category"));
 app.use("/image/poster", express.static("public/posters"));
 
-const URL = process.env.MONGO_URL;
-mongoose.connect(URL);
-const db = mongoose.connection;
-db.on("error", (error) => console.error(error));
-db.once("open", () => console.log("Connected to Database"));
+mongoose
+  .connect(URL)
+  .then(() => console.log("Connected to Database"))
+  .catch((error) => console.error(error));
 
-//Routes
+// Routes
 app.use("/categories", require("./routes/category"));
 app.use("/users", require("./routes/user"));
 app.use("/subCategories", require("./routes/subCategory"));
@@ -49,12 +55,13 @@ app.get(
 
 // Global error handler
 app.use((error, req, res, next) => {
-  res.status(500).json({
+  res.status(error.status || 500).json({
     success: false,
-    message: error.message,
+    message: error.message || "Internal Server Error",
     data: null,
   });
 });
-app.listen(process.env.PORT, () => {
-  console.log(`Server is running on ${process.env.PORT}`);
+
+app.listen(PORT, () => {
+  console.log(`Server is running on ${PORT}`);
 });

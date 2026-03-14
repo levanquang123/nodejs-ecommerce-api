@@ -4,7 +4,7 @@ const User = require("../model/user");
 const asyncHandler = require("express-async-handler");
 const bcrypt = require("bcrypt");
 
-//get all users
+// get all users
 router.get(
   "/",
   asyncHandler(async (req, res) => {
@@ -17,7 +17,7 @@ router.get(
   })
 );
 
-//get user by id
+// get user by id
 router.get(
   "/:id",
   asyncHandler(async (req, res) => {
@@ -36,7 +36,7 @@ router.get(
   })
 );
 
-//login
+// register
 router.post(
   "/register",
   asyncHandler(async (req, res) => {
@@ -48,7 +48,7 @@ router.post(
     }
     const existUser = await User.findOne({ name });
     if (existUser) {
-      return res.json({ success: false, message: "User has alrealdy exist" });
+      return res.json({ success: false, message: "User has already exist" });
     }
 
     const newUser = new User({
@@ -67,7 +67,7 @@ router.post(
   })
 );
 
-//login
+// login
 router.post(
   "/login",
   asyncHandler(async (req, res) => {
@@ -91,13 +91,13 @@ router.post(
     }
     res.json({
       success: true,
-      message: "User login successfully.",
+      message: "User updated successfully.",
       data: user,
     });
   })
 );
 
-//update user
+// update user
 router.put(
   "/:id",
   asyncHandler(async (req, res) => {
@@ -127,7 +127,7 @@ router.put(
   })
 );
 
-// delete user 
+// delete user
 router.delete(
   "/:id",
   asyncHandler(async (req, res) => {

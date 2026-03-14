@@ -4,7 +4,7 @@ const asyncHandler = require("express-async-handler");
 const Brand = require("../model/brand");
 const Product = require("../model/product");
 
-//get all brand in a subcategory
+// get all brands
 router.get(
   "/",
   asyncHandler(async (req, res) => {
@@ -52,7 +52,7 @@ router.post(
 
     const existBrand = await Brand.findOne({ name });
     if (existBrand) {
-      return res.json({ success: false, message: "Brand has alrealdy exist" });
+      return res.json({ success: false, message: "Brand has already exist" });
     }
     const newBrand = new Brand({
       name,
@@ -92,7 +92,7 @@ router.put(
   })
 );
 
-//delete a brand
+// delete a brand
 router.delete(
   "/:id",
   asyncHandler(async (req, res) => {

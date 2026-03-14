@@ -12,9 +12,9 @@ router.post(
     const { email, name, address, amount, currency, description } = req.body;
 
     const customer = await stripe.customers.create({
-      email: email,
-      name: name,
-      address: address,
+      email,
+      name,
+      address,
     });
 
     const ephemeralKey = await stripe.ephemeralKeys.create(
@@ -23,10 +23,10 @@ router.post(
     );
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: amount,
-      currency: currency,
+      amount,
+      currency,
       customer: customer.id,
-      description: description,
+      description,
       automatic_payment_methods: { enabled: true },
     });
 

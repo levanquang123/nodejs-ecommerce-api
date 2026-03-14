@@ -4,51 +4,39 @@ const Variant = require("../model/variant");
 const asyncHandler = require("express-async-handler");
 const Product = require("../model/product");
 
-// Get all variants
+// get all variants
 router.get(
   "/",
   asyncHandler(async (req, res) => {
-    try {
-      const variants = await Variant.find()
-        .populate("variantTypeId")
-        .sort({ variantTypeId: 1 });
-      res.json({
-        success: true,
-        message: "Variants retrieved successfully.",
-        data: variants,
-      });
-    } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
-    }
+    const variants = await Variant.find()
+      .populate("variantTypeId")
+      .sort({ variantTypeId: 1 });
+    res.json({
+      success: true,
+      message: "Variants retrieved successfully.",
+      data: variants,
+    });
   })
 );
 
-// Get a variant by ID
+// get a variant by ID
 router.get(
   "/:id",
   asyncHandler(async (req, res) => {
-    try {
-      const variantID = req.params.id;
-      const variant = await Variant.findById(variantID).populate(
-        "variantTypeId"
-      );
-      if (!variant) {
-        return res
-          .status(404)
-          .json({ success: false, message: "Variant not found." });
-      }
-      res.json({
-        success: true,
-        message: "Variant retrieved successfully.",
-        data: variant,
-      });
-    } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
+    const variantID = req.params.id;
+    const variant = await Variant.findById(variantID).populate("variantTypeId");
+    if (!variant) {
+      return res.status(404).json({ success: false, message: "Variant not found." });
     }
+    res.json({
+      success: true,
+      message: "Variant retrieved successfully.",
+      data: variant,
+    });
   })
 );
 
-// Create a new variant
+// create a new variant
 router.post(
   "/",
   asyncHandler(async (req, res) => {
@@ -59,22 +47,17 @@ router.post(
         message: "Name and VariantType ID are required.",
       });
     }
-
-    try {
-      const variant = new Variant({ name, variantTypeId });
-      const newVariant = await variant.save();
-      res.json({
-        success: true,
-        message: "Variant created successfully.",
-        data: null,
-      });
-    } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
-    }
+    const variant = new Variant({ name, variantTypeId });
+    await variant.save();
+    res.json({
+      success: true,
+      message: "Variant created successfully.",
+      data: null,
+    });
   })
 );
 
-// Update a variant
+// update a variant
 router.put(
   "/:id",
   asyncHandler(async (req, res) => {
@@ -86,38 +69,29 @@ router.put(
         message: "Name and VariantType ID are required.",
       });
     }
-
-    try {
-      const updatedVariant = await Variant.findByIdAndUpdate(
-        variantID,
-        { name, variantTypeId },
-        { new: true }
-      );
-      if (!updatedVariant) {
-        return res
-          .status(404)
-          .json({ success: false, message: "Variant not found." });
-      }
-      res.json({
-        success: true,
-        message: "Variant updated successfully.",
-        data: null,
-      });
-    } catch (error) {
-      res.status(500).json({ success: false, message: error.message });
+    const updatedVariant = await Variant.findByIdAndUpdate(
+      variantID,
+      { name, variantTypeId },
+      { new: true }
+    );
+    if (!updatedVariant) {
+      return res.status(404).json({ success: false, message: "Variant not found." });
     }
+    res.json({
+      success: true,
+      message: "Variant updated successfully.",
+      data: null,
+    });
   })
 );
 
-// Delete a variant
+// delete a variant
 router.delete(
   "/:id",
   asyncHandler(async (req, res) => {
     const variantID = req.params.id;
 
-    const productCount = await Product.countDocuments({
-      proVariantId: variantID,
-    });
+    const productCount = await Product.countDocuments({ proVariantId: variantID });
     if (productCount > 0) {
       return res.status(400).json({
         success: false,
@@ -126,11 +100,10 @@ router.delete(
     }
     const variantDelete = await Variant.findByIdAndDelete(variantID);
     if (!variantDelete) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Variant not found." });
+      return res.status(404).json({ success: false, message: "Variant not found." });
     }
     res.json({ success: true, message: "Variant deleted successfully." });
   })
 );
+
 module.exports = router;

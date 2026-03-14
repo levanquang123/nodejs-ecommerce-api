@@ -1,82 +1,36 @@
 const multer = require("multer");
 const path = require("path");
 
-const storageProduct = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "./public/products");
-  },
-  filename: function (req, file, cb) {
-    const fileType = /jpeg|png|jpg/;
-    const extname = fileType.test(
-      path.extname(file.originalname).toLowerCase()
-    );
-    if (extname) {
-      cb(null, Date.now() + "_" + file.originalname);
-    } else {
-      cb("Error: only .jpeg, .jpg, .png files are allowed!");
-    }
-  },
-});
+const FILE_SIZE_LIMIT = 1024 * 1024 * 5;
+const ALLOWED_EXT = /\.(jpeg|png|jpg)$/i;
+
+function createStorage(destination, filenameFn) {
+  return multer.diskStorage({
+    destination: (req, file, cb) => cb(null, destination),
+    filename: (req, file, cb) => {
+      if (!ALLOWED_EXT.test(path.extname(file.originalname))) {
+        return cb(new Error("Only .jpeg, .jpg, .png files are allowed!"));
+      }
+      cb(null, filenameFn(file));
+    },
+  });
+}
 
 const uploadProduct = multer({
-  storage: storageProduct,
-  limits: {
-    fileSize: 1024 * 1024 * 5,
-  },
-});
-
-const storageCategory = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "./public/category");
-  },
-  filename: function (req, file, cb) {
-    const fileType = /jpeg|png|jpg/;
-    const extname = fileType.test(
-      path.extname(file.originalname).toLowerCase()
-    );
-    if (extname) {
-      cb(
-        null,
-        Date.now() +
-          "_" +
-          Math.floor(Math.random() * 1000) +
-          path.extname(file.originalname)
-      );
-    } else {
-      cb("Error: only .jpeg, .jpg, .png files are allowed!");
-    }
-  },
+  storage: createStorage("./public/products", (file) => `${Date.now()}_${file.originalname}`),
+  limits: { fileSize: FILE_SIZE_LIMIT },
 });
 
 const uploadCategory = multer({
-  storage: storageCategory,
-  limits: {
-    fileSize: 1024 * 1024 * 5,
-  },
-});
-
-const storagePoster = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "./public/posters");
-  },
-  filename: function (req, file, cb) {
-    const fileType = /jpeg|png|jpg/;
-    const extname = fileType.test(
-      path.extname(file.originalname).toLowerCase()
-    );
-    if (extname) {
-      cb(null, Date.now() + "_" + file.originalname);
-    } else {
-      cb("Error: only .jpeg, .jpg, .png files are allowed!");
-    }
-  },
+  storage: createStorage("./public/category", (file) =>
+    `${Date.now()}_${Math.floor(Math.random() * 1000)}${path.extname(file.originalname)}`
+  ),
+  limits: { fileSize: FILE_SIZE_LIMIT },
 });
 
 const uploadPosters = multer({
-  storage: storagePoster,
-  limits: {
-    fileSize: 1024 * 1024 * 5,
-  },
+  storage: createStorage("./public/posters", (file) => `${Date.now()}_${file.originalname}`),
+  limits: { fileSize: FILE_SIZE_LIMIT },
 });
 
 module.exports = {
