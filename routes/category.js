@@ -6,6 +6,8 @@ const multer = require("multer");
 const { uploadCategory } = require("../uploadFile");
 const SubCategory = require("../model/subCategory");
 const Product = require("../model/product");
+const auth = require("../middleware/auth");
+const admin = require("../middleware/admin");
 
 const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
 
@@ -48,7 +50,7 @@ router.get(
 
 // create a new category with image upload
 router.post(
-  "/",
+  "/",auth,admin,
   asyncHandler(async (req, res) => {
     uploadCategory.single("img")(req, res, async function (err) {
       if (err) return handleMulterError(err, res);
@@ -78,7 +80,7 @@ router.post(
 );
 
 router.put(
-  "/:id",
+  "/:id",auth,admin,
   asyncHandler(async (req, res) => {
     const categoryID = req.params.id;
     uploadCategory.single("img")(req, res, async function (err) {
@@ -111,7 +113,7 @@ router.put(
 );
 
 router.delete(
-  "/:id",
+  "/:id",auth,admin,  
   asyncHandler(async (req, res) => {
     const categoryID = req.params.id;
 

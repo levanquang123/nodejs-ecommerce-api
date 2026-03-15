@@ -2,6 +2,8 @@ const express = require("express");
 const asyncHandler = require("express-async-handler");
 const router = express.Router();
 const Order = require("../model/order");
+const auth = require("../middleware/auth");
+const admin = require("../middleware/admin");
 
 const orderPopulate = [
   { path: "couponCode", select: "id couponCode discountType discountAmount" },
@@ -74,6 +76,7 @@ router.post(
       orderTotal,
       trackingUrl,
     } = req.body;
+
     if (
       !userID ||
       !items ||
@@ -89,6 +92,26 @@ router.post(
       });
     }
 
+    const Product = require("../model/product");
+
+    for (const item of items) {
+      const product = await Product.findById(item.productID);
+
+      if (!product) {
+        return res.status(404).json({
+          success: false,
+          message: `Product not found.`,
+        });
+      }
+
+      if (product.quantity < item.quantity) {
+        return res.status(400).json({
+          success: false,
+          message: `Product ${product.name} is out of stock.`,
+        });
+      }
+    }
+
     const order = new Order({
       userID,
       orderStatus,
@@ -100,10 +123,18 @@ router.post(
       orderTotal,
       trackingUrl,
     });
+
     await order.save();
+
+    for (const item of items) {
+      await Product.findByIdAndUpdate(item.productID, {
+        $inc: { quantity: -item.quantity },
+      });
+    }
+
     res.json({
       success: true,
-      message: "Order created successfully.",
+      message: "Order created successfully and stock updated.",
       data: null,
     });
   })
@@ -111,7 +142,7 @@ router.post(
 
 // update an order
 router.put(
-  "/:id",
+  "/:id",auth,admin,
   asyncHandler(async (req, res) => {
     const orderID = req.params.id;
     const { orderStatus, trackingUrl } = req.body;

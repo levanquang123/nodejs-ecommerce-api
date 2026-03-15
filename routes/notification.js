@@ -5,6 +5,8 @@ const Notification = require("../model/notification");
 const OneSignal = require("onesignal-node");
 const dotenv = require("dotenv");
 dotenv.config();
+const auth = require("../middleware/auth");
+const admin = require("../middleware/admin");
 
 const client = new OneSignal.Client(
   process.env.ONE_SIGNAL_APP_ID,
@@ -12,7 +14,7 @@ const client = new OneSignal.Client(
 );
 
 router.post(
-  "/send-notification",
+  "/send-notification",auth,admin,
   asyncHandler(async (req, res) => {
     const { title, description, imageUrl } = req.body;
 
@@ -81,7 +83,7 @@ router.get(
 );
 
 router.delete(
-  "/delete-notification/:id",
+  "/delete-notification/:id",auth,admin,
   asyncHandler(async (req, res) => {
     const notificationID = req.params.id;
     const notification = await Notification.findByIdAndDelete(notificationID);

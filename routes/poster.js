@@ -4,6 +4,8 @@ const Poster = require("../model/poster");
 const { uploadPosters } = require("../uploadFile");
 const multer = require("multer");
 const asyncHandler = require("express-async-handler");
+const auth = require("../middleware/auth");
+const admin = require("../middleware/admin");
 
 const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
 
@@ -46,7 +48,7 @@ router.get(
 
 // create a new poster
 router.post(
-  "/",
+  "/",auth,admin,
   asyncHandler(async (req, res) => {
     uploadPosters.single("img")(req, res, async function (err) {
       if (err) return handleMulterError(err, res);
@@ -73,7 +75,7 @@ router.post(
 
 // update a poster
 router.put(
-  "/:id",
+  "/:id",auth,admin,
   asyncHandler(async (req, res) => {
     const posterID = req.params.id;
     uploadPosters.single("img")(req, res, async function (err) {
@@ -107,7 +109,7 @@ router.put(
 
 // delete a poster
 router.delete(
-  "/:id",
+  "/:id",auth,admin,
   asyncHandler(async (req, res) => {
     const posterID = req.params.id;
     const deletedPoster = await Poster.findByIdAndDelete(posterID);

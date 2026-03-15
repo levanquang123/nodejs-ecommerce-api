@@ -3,6 +3,8 @@ const router = express.Router();
 const Variant = require("../model/variant");
 const asyncHandler = require("express-async-handler");
 const Product = require("../model/product");
+const auth = require("../middleware/auth");
+const admin = require("../middleware/admin");
 
 // get all variants
 router.get(
@@ -38,7 +40,7 @@ router.get(
 
 // create a new variant
 router.post(
-  "/",
+  "/",auth,admin,
   asyncHandler(async (req, res) => {
     const { name, variantTypeId } = req.body;
     if (!name || !variantTypeId) {
@@ -59,7 +61,7 @@ router.post(
 
 // update a variant
 router.put(
-  "/:id",
+  "/:id",auth,admin,
   asyncHandler(async (req, res) => {
     const variantID = req.params.id;
     const { name, variantTypeId } = req.body;
@@ -87,7 +89,7 @@ router.put(
 
 // delete a variant
 router.delete(
-  "/:id",
+  "/:id",auth,admin,
   asyncHandler(async (req, res) => {
     const variantID = req.params.id;
 

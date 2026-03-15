@@ -4,6 +4,8 @@ const Product = require("../model/product");
 const multer = require("multer");
 const { uploadProduct } = require("../uploadFile");
 const asyncHandler = require("express-async-handler");
+const auth = require("../middleware/auth");
+const admin = require("../middleware/admin");
 
 const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
 const PRODUCT_IMAGE_FIELDS = [
@@ -77,6 +79,13 @@ router.post(
         return res.status(400).json({ success: false, message: "Required fields are missing." });
       }
 
+      if (offerPrice && Number(offerPrice) > Number(price)) {
+        return res.status(400).json({
+          success: false,
+          message: "Offer price cannot be greater than original price."
+        });
+      }
+
       const imageUrls = buildProductImageUrls(req.files || {});
       const newProduct = new Product({
         name,
@@ -109,6 +118,13 @@ router.put(
       const productToUpdate = await Product.findById(productId);
       if (!productToUpdate) {
         return res.status(404).json({ success: false, message: "Product not found." });
+      }
+
+      if (offerPrice && price && Number(offerPrice) > Number(price)) {
+        return res.status(400).json({
+          success: false,
+          message: "Offer price cannot be greater than original price."
+        });
       }
 
       productToUpdate.name = name || productToUpdate.name;

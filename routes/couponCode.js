@@ -3,6 +3,8 @@ const asyncHandler = require("express-async-handler");
 const router = express.Router();
 const Coupon = require("../model/couponCode");
 const Product = require("../model/product");
+const auth = require("../middleware/auth");
+const admin = require("../middleware/admin");
 
 // get all coupons
 router.get(
@@ -42,7 +44,7 @@ router.get(
 
 // create a new coupon
 router.post(
-  "/",
+  "/",auth,admin,
   asyncHandler(async (req, res) => {
     const {
       couponCode,
@@ -90,7 +92,7 @@ router.post(
 
 // update a coupon
 router.put(
-  "/:id",
+  "/:id",auth,admin,
   asyncHandler(async (req, res) => {
     const couponID = req.params.id;
     const {
@@ -145,7 +147,7 @@ router.put(
 
 // delete a coupon
 router.delete(
-  "/:id",
+  "/:id",auth,admin,
   asyncHandler(async (req, res) => {
     const couponID = req.params.id;
     const deletedCoupon = await Coupon.findByIdAndDelete(couponID);

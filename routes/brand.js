@@ -3,6 +3,8 @@ const router = express.Router();
 const asyncHandler = require("express-async-handler");
 const Brand = require("../model/brand");
 const Product = require("../model/product");
+const auth = require("../middleware/auth");
+const admin = require("../middleware/admin");
 
 // get all brands
 router.get(
@@ -21,7 +23,7 @@ router.get(
 
 // get brand by id
 router.get(
-  "/:id",
+  "/:id",auth,admin,
   asyncHandler(async (req, res) => {
     const brandID = req.params.id;
     const brand = await Brand.findById(brandID).populate("subCategoryId");
@@ -40,7 +42,7 @@ router.get(
 
 // create a new brand
 router.post(
-  "/",
+  "/",auth,admin,
   asyncHandler(async (req, res) => {
     const { name, subCategoryId } = req.body;
     if (!name || !subCategoryId) {
@@ -66,7 +68,7 @@ router.post(
 
 // update a brand
 router.put(
-  "/:id",
+  "/:id",auth,admin,
   asyncHandler(async (req, res) => {
     const { name, subCategoryId } = req.body;
     const brandID = req.params.id;
@@ -94,7 +96,7 @@ router.put(
 
 // delete a brand
 router.delete(
-  "/:id",
+  "/:id",auth,admin,
   asyncHandler(async (req, res) => {
     const brandID = req.params.id;
 
