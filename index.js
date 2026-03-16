@@ -8,7 +8,7 @@ const mongoose = require("mongoose");
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3000;
 const URL = process.env.MONGO_URL;
 
 if (!URL) {
@@ -32,7 +32,10 @@ app.use("/image/poster", express.static("public/posters"));
 mongoose
   .connect(URL)
   .then(() => console.log("Connected to Database"))
-  .catch((error) => console.error(error));
+  .catch((error) => {
+    console.error("Database connection error:", error);
+    process.exit(1);
+  });
 
 // Routes
 app.use("/categories", require("./routes/category"));

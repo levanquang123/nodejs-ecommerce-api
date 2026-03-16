@@ -4,6 +4,7 @@ const router = express.Router();
 const Order = require("../model/order");
 const auth = require("../middleware/auth");
 const admin = require("../middleware/admin");
+const Product = require("../model/product");
 
 const orderPopulate = [
   { path: "couponCode", select: "id couponCode discountType discountAmount" },
@@ -92,7 +93,6 @@ router.post(
       });
     }
 
-    const Product = require("../model/product");
 
     for (const item of items) {
       const product = await Product.findById(item.productID);
