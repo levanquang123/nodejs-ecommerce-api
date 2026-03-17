@@ -39,7 +39,7 @@ function buildProductImageUrls(files) {
 
       imageUrls.push({
         image: index + 1,
-        url: file.path, // Cloudinary URL
+        url: file.path,
       });
     }
   });
@@ -221,7 +221,7 @@ router.put(
 
       fieldNames.forEach((field, index) => {
         if (files[field] && files[field].length > 0) {
-          const imageUrl = files[field][0].path; // Cloudinary URL
+          const imageUrl = files[field][0].path;
           const imageEntry = productToUpdate.images.find(
             (img) => img.image === index + 1
           );
