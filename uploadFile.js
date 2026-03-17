@@ -1,35 +1,42 @@
 const multer = require("multer");
-const path = require("path");
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const cloudinary = require("cloudinary").v2;
 
 const FILE_SIZE_LIMIT = 1024 * 1024 * 5;
-const ALLOWED_EXT = /\.(jpeg|png|jpg)$/i;
 
-function createStorage(destination, filenameFn) {
-  return multer.diskStorage({
-    destination: (req, file, cb) => cb(null, destination),
-    filename: (req, file, cb) => {
-      if (!ALLOWED_EXT.test(path.extname(file.originalname))) {
-        return cb(new Error("Only .jpeg, .jpg, .png files are allowed!"));
-      }
-      cb(null, filenameFn(file));
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+function createCloudinaryStorage(folderName) {
+  return new CloudinaryStorage({
+    cloudinary,
+    params: async (req, file) => {
+      const originalName = file.originalname.split(".")[0].replace(/\s+/g, "-");
+
+      return {
+        folder: `ecommerce/${folderName}`,
+        allowed_formats: ["jpg", "jpeg", "png"],
+        public_id: `${Date.now()}-${originalName}`,
+      };
     },
   });
 }
 
 const uploadProduct = multer({
-  storage: createStorage("./public/products", (file) => `${Date.now()}_${file.originalname}`),
+  storage: createCloudinaryStorage("products"),
   limits: { fileSize: FILE_SIZE_LIMIT },
 });
 
 const uploadCategory = multer({
-  storage: createStorage("./public/category", (file) =>
-    `${Date.now()}_${Math.floor(Math.random() * 1000)}${path.extname(file.originalname)}`
-  ),
+  storage: createCloudinaryStorage("categories"),
   limits: { fileSize: FILE_SIZE_LIMIT },
 });
 
 const uploadPosters = multer({
-  storage: createStorage("./public/posters", (file) => `${Date.now()}_${file.originalname}`),
+  storage: createCloudinaryStorage("posters"),
   limits: { fileSize: FILE_SIZE_LIMIT },
 });
 

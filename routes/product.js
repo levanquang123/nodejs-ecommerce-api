@@ -7,7 +7,6 @@ const asyncHandler = require("express-async-handler");
 const auth = require("../middleware/auth");
 const admin = require("../middleware/admin");
 
-const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
 const PRODUCT_IMAGE_FIELDS = [
   { name: "image1", maxCount: 1 },
   { name: "image2", maxCount: 1 },
@@ -18,20 +17,33 @@ const PRODUCT_IMAGE_FIELDS = [
 
 function handleMulterError(err, res) {
   if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
-    return res.json({ success: false, message: "File size is too large. Maximum filesize is 5MB per image." });
+    return res.status(400).json({
+      success: false,
+      message: "File size is too large. Maximum filesize is 5MB per image.",
+    });
   }
-  return res.json({ success: false, message: err.message || err });
+
+  return res.status(400).json({
+    success: false,
+    message: err.message || "Upload failed.",
+  });
 }
 
 function buildProductImageUrls(files) {
   const imageUrls = [];
   const fieldNames = ["image1", "image2", "image3", "image4", "image5"];
+
   fieldNames.forEach((field, index) => {
     if (files[field] && files[field].length > 0) {
       const file = files[field][0];
-      imageUrls.push({ image: index + 1, url: `${BASE_URL}/image/products/${file.filename}` });
+
+      imageUrls.push({
+        image: index + 1,
+        url: file.path, // Cloudinary URL
+      });
     }
   });
+
   return imageUrls;
 }
 
@@ -45,7 +57,12 @@ router.get(
       .populate("proBrandId", "id name")
       .populate("proVariantTypeId", "id type")
       .populate("proVariantId", "id name");
-    res.json({ success: true, message: "Products retrieved successfully.", data: products });
+
+    res.json({
+      success: true,
+      message: "Products retrieved successfully.",
+      data: products,
+    });
   })
 );
 
@@ -54,39 +71,66 @@ router.get(
   "/:id",
   asyncHandler(async (req, res) => {
     const productID = req.params.id;
+
     const product = await Product.findById(productID)
       .populate("proCategoryId", "id name")
       .populate("proSubCategoryId", "id name")
       .populate("proBrandId", "id name")
       .populate("proVariantTypeId", "id name")
       .populate("proVariantId", "id name");
+
     if (!product) {
-      return res.status(404).json({ success: false, message: "Product not found." });
+      return res.status(404).json({
+        success: false,
+        message: "Product not found.",
+      });
     }
-    res.json({ success: true, message: "Product retrieved successfully.", data: product });
+
+    res.json({
+      success: true,
+      message: "Product retrieved successfully.",
+      data: product,
+    });
   })
 );
 
 // create a new product
 router.post(
   "/",
+  auth, admin,
   asyncHandler(async (req, res) => {
     uploadProduct.fields(PRODUCT_IMAGE_FIELDS)(req, res, async function (err) {
       if (err) return handleMulterError(err, res);
 
-      const { name, description, quantity, price, offerPrice, proCategoryId, proSubCategoryId, proBrandId, proVariantTypeId, proVariantId } = req.body;
+      const {
+        name,
+        description,
+        quantity,
+        price,
+        offerPrice,
+        proCategoryId,
+        proSubCategoryId,
+        proBrandId,
+        proVariantTypeId,
+        proVariantId,
+      } = req.body;
+
       if (!name || !quantity || !price || !proCategoryId || !proSubCategoryId) {
-        return res.status(400).json({ success: false, message: "Required fields are missing." });
+        return res.status(400).json({
+          success: false,
+          message: "Required fields are missing.",
+        });
       }
 
       if (offerPrice && Number(offerPrice) > Number(price)) {
         return res.status(400).json({
           success: false,
-          message: "Offer price cannot be greater than original price."
+          message: "Offer price cannot be greater than original price.",
         });
       }
 
       const imageUrls = buildProductImageUrls(req.files || {});
+
       const newProduct = new Product({
         name,
         description,
@@ -100,8 +144,14 @@ router.post(
         proVariantId,
         images: imageUrls,
       });
+
       await newProduct.save();
-      res.json({ success: true, message: "Product created successfully.", data: null });
+
+      res.status(201).json({
+        success: true,
+        message: "Product created successfully.",
+        data: newProduct,
+      });
     });
   })
 );
@@ -109,51 +159,91 @@ router.post(
 // update a product
 router.put(
   "/:id",
+  auth, admin,
   asyncHandler(async (req, res) => {
     const productId = req.params.id;
+
     uploadProduct.fields(PRODUCT_IMAGE_FIELDS)(req, res, async function (err) {
       if (err) return handleMulterError(err, res);
 
-      const { name, description, quantity, price, offerPrice, proCategoryId, proSubCategoryId, proBrandId, proVariantTypeId, proVariantId } = req.body;
-      const productToUpdate = await Product.findById(productId);
-      if (!productToUpdate) {
-        return res.status(404).json({ success: false, message: "Product not found." });
-      }
+      const {
+        name,
+        description,
+        quantity,
+        price,
+        offerPrice,
+        proCategoryId,
+        proSubCategoryId,
+        proBrandId,
+        proVariantTypeId,
+        proVariantId,
+      } = req.body;
 
-      if (offerPrice && price && Number(offerPrice) > Number(price)) {
-        return res.status(400).json({
+      const productToUpdate = await Product.findById(productId);
+
+      if (!productToUpdate) {
+        return res.status(404).json({
           success: false,
-          message: "Offer price cannot be greater than original price."
+          message: "Product not found.",
         });
       }
 
-      productToUpdate.name = name || productToUpdate.name;
-      productToUpdate.description = description || productToUpdate.description;
-      productToUpdate.quantity = quantity || productToUpdate.quantity;
-      productToUpdate.price = price || productToUpdate.price;
-      productToUpdate.offerPrice = offerPrice || productToUpdate.offerPrice;
-      productToUpdate.proCategoryId = proCategoryId || productToUpdate.proCategoryId;
-      productToUpdate.proSubCategoryId = proSubCategoryId || productToUpdate.proSubCategoryId;
-      productToUpdate.proBrandId = proBrandId || productToUpdate.proBrandId;
-      productToUpdate.proVariantTypeId = proVariantTypeId || productToUpdate.proVariantTypeId;
-      productToUpdate.proVariantId = proVariantId || productToUpdate.proVariantId;
+      const finalPrice = price ?? productToUpdate.price;
+      const finalOfferPrice = offerPrice ?? productToUpdate.offerPrice;
+
+      if (
+        finalOfferPrice !== undefined &&
+        finalOfferPrice !== null &&
+        finalOfferPrice !== "" &&
+        Number(finalOfferPrice) > Number(finalPrice)
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Offer price cannot be greater than original price.",
+        });
+      }
+
+      productToUpdate.name = name ?? productToUpdate.name;
+      productToUpdate.description = description ?? productToUpdate.description;
+      productToUpdate.quantity = quantity ?? productToUpdate.quantity;
+      productToUpdate.price = price ?? productToUpdate.price;
+      productToUpdate.offerPrice = offerPrice ?? productToUpdate.offerPrice;
+      productToUpdate.proCategoryId = proCategoryId ?? productToUpdate.proCategoryId;
+      productToUpdate.proSubCategoryId =
+        proSubCategoryId ?? productToUpdate.proSubCategoryId;
+      productToUpdate.proBrandId = proBrandId ?? productToUpdate.proBrandId;
+      productToUpdate.proVariantTypeId =
+        proVariantTypeId ?? productToUpdate.proVariantTypeId;
+      productToUpdate.proVariantId = proVariantId ?? productToUpdate.proVariantId;
 
       const fieldNames = ["image1", "image2", "image3", "image4", "image5"];
       const files = req.files || {};
+
       fieldNames.forEach((field, index) => {
         if (files[field] && files[field].length > 0) {
-          const imageUrl = `${BASE_URL}/image/products/${files[field][0].filename}`;
-          const imageEntry = productToUpdate.images.find((img) => img.image === index + 1);
+          const imageUrl = files[field][0].path; // Cloudinary URL
+          const imageEntry = productToUpdate.images.find(
+            (img) => img.image === index + 1
+          );
+
           if (imageEntry) {
             imageEntry.url = imageUrl;
           } else {
-            productToUpdate.images.push({ image: index + 1, url: imageUrl });
+            productToUpdate.images.push({
+              image: index + 1,
+              url: imageUrl,
+            });
           }
         }
       });
 
       await productToUpdate.save();
-      res.json({ success: true, message: "Product updated successfully." });
+
+      res.json({
+        success: true,
+        message: "Product updated successfully.",
+        data: productToUpdate,
+      });
     });
   })
 );
@@ -161,13 +251,23 @@ router.put(
 // delete a product
 router.delete(
   "/:id",
+  auth, admin,
   asyncHandler(async (req, res) => {
     const productID = req.params.id;
+
     const product = await Product.findByIdAndDelete(productID);
+
     if (!product) {
-      return res.status(404).json({ success: false, message: "Product not found." });
+      return res.status(404).json({
+        success: false,
+        message: "Product not found.",
+      });
     }
-    res.json({ success: true, message: "Product deleted successfully." });
+
+    res.json({
+      success: true,
+      message: "Product deleted successfully.",
+    });
   })
 );
 

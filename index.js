@@ -24,11 +24,6 @@ app.use(cors({
 app.use(express.json()); 
 app.use(express.urlencoded({ extended: true }));
 
-// setting static folder path
-app.use("/image/products", express.static("public/products"));
-app.use("/image/category", express.static("public/category"));
-app.use("/image/poster", express.static("public/posters"));
-
 mongoose
   .connect(URL)
   .then(() => console.log("Connected to Database"))
@@ -71,6 +66,6 @@ app.use((error, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server is running on port ${PORT}`);
 });

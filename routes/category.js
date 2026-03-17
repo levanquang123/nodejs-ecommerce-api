@@ -9,13 +9,18 @@ const Product = require("../model/product");
 const auth = require("../middleware/auth");
 const admin = require("../middleware/admin");
 
-const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
-
 function handleMulterError(err, res) {
   if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
-    return res.json({ success: false, message: "File size is too large. Maximum filesize is 5MB." });
+    return res.status(400).json({
+      success: false,
+      message: "File size is too large. Maximum filesize is 5MB.",
+    });
   }
-  return res.json({ success: false, message: err.message || err });
+
+  return res.status(400).json({
+    success: false,
+    message: err.message || "Upload failed.",
+  });
 }
 
 // get all categories
@@ -23,6 +28,7 @@ router.get(
   "/",
   asyncHandler(async (req, res) => {
     const categories = await Category.find();
+
     res.json({
       success: true,
       message: "Categories retrieved successfully.",
@@ -37,9 +43,14 @@ router.get(
   asyncHandler(async (req, res) => {
     const categoryID = req.params.id;
     const category = await Category.findById(categoryID);
+
     if (!category) {
-      return res.status(404).json({ success: false, message: "Category not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Category not found",
+      });
     }
+
     res.json({
       success: true,
       message: "Category retrieved successfully.",
@@ -50,70 +61,93 @@ router.get(
 
 // create a new category with image upload
 router.post(
-  "/",auth,admin,
+  "/",
+  auth,
+  admin,
   asyncHandler(async (req, res) => {
     uploadCategory.single("img")(req, res, async function (err) {
       if (err) return handleMulterError(err, res);
 
       const { name } = req.body;
+
       if (!name) {
-        return res.status(400).json({ success: false, message: "Name is required." });
-      }
-      let imageUrl = "no_url";
-      if (req.file) {
-        imageUrl = `${BASE_URL}/image/category/${req.file.filename}`;
+        return res.status(400).json({
+          success: false,
+          message: "Name is required.",
+        });
       }
 
       const existCategory = await Category.findOne({ name });
+
       if (existCategory) {
-        return res.json({ success: false, message: "Category has already exist" });
+        return res.status(400).json({
+          success: false,
+          message: "Category already exists.",
+        });
       }
-      const newCategory = new Category({ name, image: imageUrl });
+
+      const imageUrl = req.file ? req.file.path : "no_url";
+
+      const newCategory = new Category({
+        name,
+        image: imageUrl,
+      });
+
       await newCategory.save();
-      res.json({
+
+      res.status(201).json({
         success: true,
         message: "Category created successfully.",
-        data: null,
+        data: newCategory,
       });
     });
   })
 );
 
+// update category
 router.put(
-  "/:id",auth,admin,
+  "/:id",
+  auth,
+  admin,
   asyncHandler(async (req, res) => {
     const categoryID = req.params.id;
+
     uploadCategory.single("img")(req, res, async function (err) {
       if (err) return handleMulterError(err, res);
 
       const { name } = req.body;
-      let image = req.body.image;
-      if (req.file) {
-        image = `${BASE_URL}/image/category/${req.file.filename}`;
-      }
-      if (!name || !image) {
-        return res.status(400).json({ success: false, message: "Name and image are required." });
+
+      const category = await Category.findById(categoryID);
+
+      if (!category) {
+        return res.status(404).json({
+          success: false,
+          message: "Category not found.",
+        });
       }
 
-      const updateCategory = await Category.findByIdAndUpdate(
-        categoryID,
-        { name, image },
-        { new: true }
-      );
-      if (!updateCategory) {
-        return res.status(404).json({ success: false, message: "Category not found." });
+      category.name = name ?? category.name;
+
+      if (req.file) {
+        category.image = req.file.path;
       }
+
+      await category.save();
+
       res.json({
         success: true,
         message: "Category updated successfully.",
-        data: null,
+        data: category,
       });
     });
   })
 );
 
+// delete category
 router.delete(
-  "/:id",auth,admin,  
+  "/:id",
+  auth,
+  admin,
   asyncHandler(async (req, res) => {
     const categoryID = req.params.id;
 
@@ -124,6 +158,7 @@ router.delete(
         message: "Cannot delete Category, subCategories are referencing it.",
       });
     }
+
     const products = await Product.find({ proCategoryId: categoryID });
     if (products.length > 0) {
       return res.status(400).json({
@@ -131,11 +166,20 @@ router.delete(
         message: "Cannot delete Category, products are referencing it.",
       });
     }
+
     const categoryDelete = await Category.findByIdAndDelete(categoryID);
+
     if (!categoryDelete) {
-      return res.status(404).json({ success: false, message: "Category not found." });
+      return res.status(404).json({
+        success: false,
+        message: "Category not found.",
+      });
     }
-    res.json({ success: true, message: "Category deleted successfully." });
+
+    res.json({
+      success: true,
+      message: "Category deleted successfully.",
+    });
   })
 );
 
