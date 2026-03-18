@@ -40,17 +40,36 @@ router.get(
 
 // create a new variant
 router.post(
-  "/",auth,admin,
+  "/",
+  auth,
+  admin,
   asyncHandler(async (req, res) => {
-    const { name, variantTypeId } = req.body;
+    let { name, variantTypeId } = req.body;
+
     if (!name || !variantTypeId) {
       return res.status(400).json({
         success: false,
         message: "Name and VariantType ID are required.",
       });
     }
+
+    name = name.toLowerCase();
+
+    const existVariant = await Variant.findOne({
+      name,
+      variantTypeId,
+    });
+
+    if (existVariant) {
+      return res.status(400).json({
+        success: false,
+        message: "Variant already exists",
+      });
+    }
+
     const variant = new Variant({ name, variantTypeId });
     await variant.save();
+
     res.json({
       success: true,
       message: "Variant created successfully.",
@@ -61,28 +80,52 @@ router.post(
 
 // update a variant
 router.put(
-  "/:id",auth,admin,
+  "/:id",
+  auth,
+  admin,
   asyncHandler(async (req, res) => {
     const variantID = req.params.id;
-    const { name, variantTypeId } = req.body;
+    let { name, variantTypeId } = req.body;
+
     if (!name || !variantTypeId) {
       return res.status(400).json({
         success: false,
         message: "Name and VariantType ID are required.",
       });
     }
+
+    name = name.toLowerCase();
+
+    const existVariant = await Variant.findOne({
+      name,
+      variantTypeId,
+      _id: { $ne: variantID },
+    });
+
+    if (existVariant) {
+      return res.status(400).json({
+        success: false,
+        message: "Variant already exists",
+      });
+    }
+
     const updatedVariant = await Variant.findByIdAndUpdate(
       variantID,
       { name, variantTypeId },
       { new: true }
     );
+
     if (!updatedVariant) {
-      return res.status(404).json({ success: false, message: "Variant not found." });
+      return res.status(404).json({
+        success: false,
+        message: "Variant not found.",
+      });
     }
+
     res.json({
       success: true,
       message: "Variant updated successfully.",
-      data: null,
+      data: updatedVariant,
     });
   })
 );

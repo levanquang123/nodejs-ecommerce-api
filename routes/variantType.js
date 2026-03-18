@@ -39,14 +39,33 @@ router.get(
 
 // create a new variant type
 router.post(
-  "/",auth,admin,
+  "/",
+  auth,
+  admin,
   asyncHandler(async (req, res) => {
-    const { name, type } = req.body;
+    let { name, type } = req.body;
+
     if (!name) {
-      return res.status(400).json({ success: false, message: "Name is required." });
+      return res.status(400).json({
+        success: false,
+        message: "Name is required.",
+      });
     }
+
+    name = name.toLowerCase();
+
+    const existVariantType = await VariantType.findOne({ name });
+
+    if (existVariantType) {
+      return res.status(400).json({
+        success: false,
+        message: "VariantType already exists",
+      });
+    }
+
     const variantType = new VariantType({ name, type });
     await variantType.save();
+
     res.json({
       success: true,
       message: "VariantType created successfully.",
@@ -57,25 +76,51 @@ router.post(
 
 // update a variant type
 router.put(
-  "/:id",auth,admin,
+  "/:id",
+  auth,
+  admin,
   asyncHandler(async (req, res) => {
     const variantTypeID = req.params.id;
-    const { name, type } = req.body;
+    let { name, type } = req.body;
+
     if (!name) {
-      return res.status(400).json({ success: false, message: "Name is required." });
+      return res.status(400).json({
+        success: false,
+        message: "Name is required.",
+      });
     }
+
+    name = name.toLowerCase();
+
+    const existVariantType = await VariantType.findOne({
+      name,
+      _id: { $ne: variantTypeID },
+    });
+
+    if (existVariantType) {
+      return res.status(400).json({
+        success: false,
+        message: "VariantType already exists",
+      });
+    }
+
     const updatedVariantType = await VariantType.findByIdAndUpdate(
       variantTypeID,
       { name, type },
       { new: true }
     );
+
     if (!updatedVariantType) {
-      return res.status(404).json({ success: false, message: "VariantType not found." });
+      return res.status(404).json({
+        success: false,
+        message: "VariantType not found.",
+      });
     }
+
     res.json({
       success: true,
       message: "VariantType updated successfully.",
-      data: null,
+      data: updatedVariantType,
     });
   })
 );

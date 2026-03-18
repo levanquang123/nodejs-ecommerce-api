@@ -159,14 +159,15 @@ router.post(
 // update a product
 router.put(
   "/:id",
-  auth, admin,
+  auth,
+  admin,
   asyncHandler(async (req, res) => {
     const productId = req.params.id;
 
     uploadProduct.fields(PRODUCT_IMAGE_FIELDS)(req, res, async function (err) {
       if (err) return handleMulterError(err, res);
 
-      const {
+      let {
         name,
         description,
         quantity,
@@ -203,18 +204,38 @@ router.put(
         });
       }
 
-      productToUpdate.name = name ?? productToUpdate.name;
+      if (name) {
+        name = name.toLowerCase();
+
+        const existProduct = await Product.findOne({
+          name,
+          _id: { $ne: productId },
+        });
+
+        if (existProduct) {
+          return res.status(400).json({
+            success: false,
+            message: "Product already exists.",
+          });
+        }
+
+        productToUpdate.name = name;
+      }
+
       productToUpdate.description = description ?? productToUpdate.description;
       productToUpdate.quantity = quantity ?? productToUpdate.quantity;
       productToUpdate.price = price ?? productToUpdate.price;
       productToUpdate.offerPrice = offerPrice ?? productToUpdate.offerPrice;
-      productToUpdate.proCategoryId = proCategoryId ?? productToUpdate.proCategoryId;
+      productToUpdate.proCategoryId =
+        proCategoryId ?? productToUpdate.proCategoryId;
       productToUpdate.proSubCategoryId =
         proSubCategoryId ?? productToUpdate.proSubCategoryId;
-      productToUpdate.proBrandId = proBrandId ?? productToUpdate.proBrandId;
+      productToUpdate.proBrandId =
+        proBrandId ?? productToUpdate.proBrandId;
       productToUpdate.proVariantTypeId =
         proVariantTypeId ?? productToUpdate.proVariantTypeId;
-      productToUpdate.proVariantId = proVariantId ?? productToUpdate.proVariantId;
+      productToUpdate.proVariantId =
+        proVariantId ?? productToUpdate.proVariantId;
 
       const fieldNames = ["image1", "image2", "image3", "image4", "image5"];
       const files = req.files || {};
@@ -222,6 +243,7 @@ router.put(
       fieldNames.forEach((field, index) => {
         if (files[field] && files[field].length > 0) {
           const imageUrl = files[field][0].path;
+
           const imageEntry = productToUpdate.images.find(
             (img) => img.image === index + 1
           );
@@ -239,10 +261,17 @@ router.put(
 
       await productToUpdate.save();
 
+      const updatedProduct = await Product.findById(productId)
+        .populate("proCategoryId", "id name")
+        .populate("proSubCategoryId", "id name")
+        .populate("proBrandId", "id name")
+        .populate("proVariantTypeId", "id name")
+        .populate("proVariantId", "id name");
+
       res.json({
         success: true,
         message: "Product updated successfully.",
-        data: productToUpdate,
+        data: updatedProduct,
       });
     });
   })

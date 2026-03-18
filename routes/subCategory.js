@@ -41,21 +41,32 @@ router.get(
 
 // create a new sub-category
 router.post(
-  "/",auth,admin,
+  "/",
+  auth,
+  admin,
   asyncHandler(async (req, res) => {
-    const { name, categoryId } = req.body;
+    let { name, categoryId } = req.body;
+
     if (!name || !categoryId) {
       return res.status(400).json({
         success: false,
         message: "Name and categoryId are required.",
       });
     }
+
+    name = name.toLowerCase();
+
     const existSubCategory = await SubCategory.findOne({ name });
     if (existSubCategory) {
-      return res.json({ success: false, message: "SubCategory has already exist" });
+      return res.status(400).json({
+        success: false,
+        message: "SubCategory already exists",
+      });
     }
+
     const newSubCategory = new SubCategory({ name, categoryId });
     await newSubCategory.save();
+
     res.json({
       success: true,
       message: "Sub-category created successfully.",
@@ -63,30 +74,53 @@ router.post(
     });
   })
 );
-
 // update a sub-category
 router.put(
-  "/:id",auth,admin,
+  "/:id",
+  auth,
+  admin,
   asyncHandler(async (req, res) => {
-    const { name, categoryId } = req.body;
+    let { name, categoryId } = req.body;
+    const subCategoryID = req.params.id;
+
     if (!name || !categoryId) {
       return res.status(400).json({
         success: false,
         message: "Name and categoryId are required.",
       });
     }
+
+    name = name.toLowerCase();
+
+    const existSubCategory = await SubCategory.findOne({
+      name,
+      _id: { $ne: subCategoryID },
+    });
+
+    if (existSubCategory) {
+      return res.status(400).json({
+        success: false,
+        message: "SubCategory already exists",
+      });
+    }
+
     const updateSubCategory = await SubCategory.findByIdAndUpdate(
-      req.params.id,
+      subCategoryID,
       { name, categoryId },
       { new: true }
     );
+
     if (!updateSubCategory) {
-      return res.status(404).json({ success: false, message: "Sub-category not found." });
+      return res.status(404).json({
+        success: false,
+        message: "Sub-category not found.",
+      });
     }
+
     res.json({
       success: true,
       message: "Sub-category updated successfully.",
-      data: null,
+      data: updateSubCategory,
     });
   })
 );

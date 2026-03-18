@@ -66,12 +66,22 @@ router.post(
     uploadPosters.single("img")(req, res, async function (err) {
       if (err) return handleMulterError(err, res);
 
-      const { posterName } = req.body;
+      let { posterName } = req.body;
 
       if (!posterName) {
         return res.status(400).json({
           success: false,
           message: "Name is required.",
+        });
+      }
+
+      posterName = posterName.toLowerCase();
+
+      const existPoster = await Poster.findOne({ posterName });
+      if (existPoster) {
+        return res.status(400).json({
+          success: false,
+          message: "Poster already exists.",
         });
       }
 
@@ -104,7 +114,7 @@ router.put(
     uploadPosters.single("img")(req, res, async function (err) {
       if (err) return handleMulterError(err, res);
 
-      const { posterName } = req.body;
+      let { posterName } = req.body;
 
       const poster = await Poster.findById(posterID);
 
@@ -115,10 +125,26 @@ router.put(
         });
       }
 
-      poster.posterName = posterName ?? poster.posterName;
+      if (posterName) {
+        posterName = posterName.toLowerCase();
+
+        const existPoster = await Poster.findOne({
+          posterName,
+          _id: { $ne: posterID },
+        });
+
+        if (existPoster) {
+          return res.status(400).json({
+            success: false,
+            message: "Poster already exists.",
+          });
+        }
+
+        poster.posterName = posterName;
+      }
 
       if (req.file) {
-        poster.imageUrl = req.file.path; // Cloudinary URL
+        poster.imageUrl = req.file.path;
       }
 
       await poster.save();

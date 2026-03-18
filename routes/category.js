@@ -77,8 +77,11 @@ router.post(
         });
       }
 
-      const existCategory = await Category.findOne({ name });
-
+      const existCategory = await Category.findOne({
+        name,
+        _id: { $ne: categoryID },
+      });
+      
       if (existCategory) {
         return res.status(400).json({
           success: false,
@@ -126,7 +129,21 @@ router.put(
         });
       }
 
-      category.name = name ?? category.name;
+      if (name) {
+        const existCategory = await Category.findOne({
+          name,
+          _id: { $ne: categoryID },
+        });
+
+        if (existCategory) {
+          return res.status(400).json({
+            success: false,
+            message: "Category already exists.",
+          });
+        }
+
+        category.name = name;
+      }
 
       if (req.file) {
         category.image = req.file.path;

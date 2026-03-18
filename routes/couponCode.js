@@ -44,9 +44,11 @@ router.get(
 
 // create a new coupon
 router.post(
-  "/",auth,admin,
+  "/",
+  auth,
+  admin,
   asyncHandler(async (req, res) => {
-    const {
+    let {
       couponCode,
       discountType,
       discountAmount,
@@ -57,6 +59,7 @@ router.post(
       applicableSubCategory,
       applicableProduct,
     } = req.body;
+
     if (
       !couponCode ||
       !discountType ||
@@ -67,6 +70,16 @@ router.post(
       return res.status(400).json({
         success: false,
         message: "Code, discountType, discountAmount, endDate, and status are required.",
+      });
+    }
+
+    couponCode = couponCode.toLowerCase();
+
+    const existCoupon = await Coupon.findOne({ couponCode });
+    if (existCoupon) {
+      return res.status(400).json({
+        success: false,
+        message: "Coupon already exists.",
       });
     }
 
@@ -81,7 +94,9 @@ router.post(
       applicableSubCategory,
       applicableProduct,
     });
+
     await coupon.save();
+
     res.json({
       success: true,
       message: "Coupon created successfully.",
@@ -92,10 +107,13 @@ router.post(
 
 // update a coupon
 router.put(
-  "/:id",auth,admin,
+  "/:id",
+  auth,
+  admin,
   asyncHandler(async (req, res) => {
     const couponID = req.params.id;
-    const {
+
+    let {
       couponCode,
       discountType,
       discountAmount,
@@ -106,6 +124,7 @@ router.put(
       applicableSubCategory,
       applicableProduct,
     } = req.body;
+
     if (
       !couponCode ||
       !discountType ||
@@ -116,6 +135,20 @@ router.put(
       return res.status(400).json({
         success: false,
         message: "CouponCode, discountType, discountAmount, endDate, and status are required.",
+      });
+    }
+
+    couponCode = couponCode.toLowerCase();
+
+    const existCoupon = await Coupon.findOne({
+      couponCode,
+      _id: { $ne: couponID },
+    });
+
+    if (existCoupon) {
+      return res.status(400).json({
+        success: false,
+        message: "Coupon already exists.",
       });
     }
 
@@ -134,9 +167,14 @@ router.put(
       },
       { new: true }
     );
+
     if (!updatedCoupon) {
-      return res.status(404).json({ success: false, message: "Coupon not found." });
+      return res.status(404).json({
+        success: false,
+        message: "Coupon not found.",
+      });
     }
+
     res.json({
       success: true,
       message: "Coupon updated successfully.",

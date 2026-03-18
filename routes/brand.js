@@ -42,9 +42,12 @@ router.get(
 
 // create a new brand
 router.post(
-  "/",auth,admin,
+  "/",
+  auth,
+  admin,
   asyncHandler(async (req, res) => {
     const { name, subCategoryId } = req.body;
+
     if (!name || !subCategoryId) {
       return res.status(400).json({
         success: false,
@@ -53,29 +56,53 @@ router.post(
     }
 
     const existBrand = await Brand.findOne({ name });
+
     if (existBrand) {
-      return res.json({ success: false, message: "Brand has already exist" });
+      return res.status(400).json({
+        success: false,
+        message: "Brand already exists",
+      });
     }
+
     const newBrand = new Brand({
       name,
       subCategoryId,
     });
+
     await newBrand.save();
 
-    res.json({ success: true, message: "Create brand successfully" });
+    res.json({
+      success: true,
+      message: "Create brand successfully",
+    });
   })
 );
 
 // update a brand
 router.put(
-  "/:id",auth,admin,
+  "/:id",
+  auth,
+  admin,
   asyncHandler(async (req, res) => {
     const { name, subCategoryId } = req.body;
     const brandID = req.params.id;
+
     if (!name || !subCategoryId) {
       return res.status(400).json({
         success: false,
         message: "Name and subcategory ID are required.",
+      });
+    }
+
+    const existBrand = await Brand.findOne({
+      name,
+      _id: { $ne: brandID },
+    });
+
+    if (existBrand) {
+      return res.status(400).json({
+        success: false,
+        message: "Brand already exists",
       });
     }
 
@@ -86,11 +113,16 @@ router.put(
     );
 
     if (!updateBrand) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Brand not found." });
+      return res.status(404).json({
+        success: false,
+        message: "Brand not found.",
+      });
     }
-    res.json({ success: true, message: "Update brand successfully" });
+
+    res.json({
+      success: true,
+      message: "Update brand successfully",
+    });
   })
 );
 
