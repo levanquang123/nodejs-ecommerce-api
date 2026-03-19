@@ -1,26 +1,36 @@
 const Notification = require("../model/notification");
-const OneSignal = require("onesignal-node");
+const OneSignal = require("@onesignal/node-onesignal");
 
-const client = new OneSignal.Client(
-  process.env.ONE_SIGNAL_APP_ID,
-  process.env.ONE_SIGNAL_REST_API_KEY
-);
+const configuration = OneSignal.createConfiguration({
+  authMethods: {
+    app_key: {
+      tokenProvider: {
+        getToken: () => process.env.ONE_SIGNAL_REST_API_KEY,
+      },
+    },
+  },
+});
+
+const client = new OneSignal.DefaultApi(configuration);
+const APP_ID = process.env.ONE_SIGNAL_APP_ID;
 
 exports.sendNotification = async ({ title, description, imageUrl }) => {
-  const notificationBody = {
-    contents: { en: description },
-    headings: { en: title },
-    included_segments: ["All"],
-    ...(imageUrl && {
-      big_picture: imageUrl,
-      adm_big_picture: imageUrl,
-      chrome_web_image: imageUrl,
-      ios_attachments: { id1: imageUrl },
-    }),
-  };
 
-  const response = await client.createNotification(notificationBody);
-  const notificationId = response.body?.id || response.id;
+  const notification = new OneSignal.Notification();
+  notification.app_id = APP_ID;
+  notification.contents = { en: description };
+  notification.headings = { en: title };
+  notification.included_segments = ["All"];
+
+  if (imageUrl) {
+    notification.big_picture = imageUrl;
+    notification.adm_big_picture = imageUrl;
+    notification.chrome_web_image = imageUrl;
+    notification.ios_attachments = { id1: imageUrl };
+  }
+
+  const response = await client.createNotification(notification);
+  const notificationId = response.id;
 
   if (!notificationId) {
     throw new Error("OneSignal failed to return a notification ID");
@@ -37,16 +47,16 @@ exports.sendNotification = async ({ title, description, imageUrl }) => {
 };
 
 exports.trackNotification = async (id) => {
-  const response = await client.viewNotification(id);
+  const response = await client.getNotification(APP_ID, id);
 
-  const androidStats = response.body.platform_delivery_stats;
+  const stats = response.platform_delivery_stats;
 
   return {
     platform: "Android",
-    success_delivery: androidStats.android.successful,
-    failed_delivery: androidStats.android.failed,
-    errored_delivery: androidStats.android.errored,
-    opened_notification: androidStats.android.converted,
+    success_delivery: stats?.android?.successful || 0,
+    failed_delivery: stats?.android?.failed || 0,
+    errored_delivery: stats?.android?.errored || 0,
+    opened_notification: stats?.android?.converted || 0,
   };
 };
 
