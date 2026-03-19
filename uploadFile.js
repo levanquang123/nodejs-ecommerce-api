@@ -1,21 +1,26 @@
 const multer = require("multer");
-const multerStorageCloudinary = require('multer-storage-cloudinary');
-const CloudinaryStorage = multerStorageCloudinary.CloudinaryStorage || multerStorageCloudinary;
 const cloudinary = require("cloudinary").v2;
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
 
+// 1. Cấu hình giới hạn file (5MB)
 const FILE_SIZE_LIMIT = 1024 * 1024 * 5;
 
+// 2. Kết nối Cloudinary (Đảm bảo đã có biến môi trường trên Render)
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+// 3. Hàm tạo Storage an toàn (Sửa lỗi treo/xoay tròn)
 function createCloudinaryStorage(folderName) {
   return new CloudinaryStorage({
-    cloudinary,
+    cloudinary: cloudinary,
     params: async (req, file) => {
-      const originalName = file.originalname.split(".")[0].replace(/\s+/g, "-");
+      // Xử lý tên file an toàn để tránh lỗi logic gây treo request
+      const originalName = file.originalname 
+        ? file.originalname.split(".")[0].substring(0, 50).replace(/\s+/g, "-") 
+        : "image";
 
       return {
         folder: `ecommerce/${folderName}`,
@@ -26,6 +31,7 @@ function createCloudinaryStorage(folderName) {
   });
 }
 
+// 4. Khởi tạo các Middleware upload cho từng mục đích
 const uploadProduct = multer({
   storage: createCloudinaryStorage("products"),
   limits: { fileSize: FILE_SIZE_LIMIT },
@@ -41,6 +47,7 @@ const uploadPosters = multer({
   limits: { fileSize: FILE_SIZE_LIMIT },
 });
 
+// 5. Xuất các module để sử dụng ở Routes
 module.exports = {
   uploadCategory,
   uploadPosters,
