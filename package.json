@@ -10,9 +10,10 @@
     "start": "node index.js"
   },
   "dependencies": {
+    "@onesignal/node-onesignal": "^5.4.0-beta1",
     "bcrypt": "^6.0.0",
     "body-parser": "^2.2.2",
-    "cloudinary": "^1.41.3",
+    "cloudinary": "^2.9.0",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
@@ -21,8 +22,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.1.5",
     "multer": "^2.1.1",
-    "multer-storage-cloudinary": "^4.0.0",
-    "onesignal-node": "^3.4.0",
+    "multer-storage-cloudinary": "^2.2.1",
     "stripe": "^20.3.1"
   }
 }
