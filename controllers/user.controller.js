@@ -66,11 +66,7 @@ exports.login = asyncHandler(async (req, res) => {
 });
 
 exports.update = asyncHandler(async (req, res) => {
-  const data = await userService.update(
-    req.params.id,
-    req.user,
-    req.body
-  );
+  const data = await userService.update(req.params.id, req.user, req.body);
 
   res.json({
     success: true,
