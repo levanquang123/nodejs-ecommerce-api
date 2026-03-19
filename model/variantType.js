@@ -14,7 +14,5 @@ const variantTypeSchema = new mongoose.Schema({
     }
 },{ timestamps: true });
 
-// Create the Variant model
 const VariantType = mongoose.model('VariantType', variantTypeSchema);
-
 module.exports = VariantType;
