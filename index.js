@@ -18,7 +18,7 @@ if (!URL) {
 app.use(cors({
   origin: [
     'https://levanquang.com', 
-    'https://admin.levanquang.com', 
+    'https://shop.levanquang.com', 
     'https://www.levanquang.com'
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
