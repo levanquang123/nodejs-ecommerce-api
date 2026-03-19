@@ -1,5 +1,5 @@
 const asyncHandler = require("express-async-handler");
-const categoryService = require("../services/category.service");
+const categoryService = require("../service/category.service");
 const multer = require("multer");
 const { uploadCategory } = require("../uploadFile");
 
