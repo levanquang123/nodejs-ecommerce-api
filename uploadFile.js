@@ -1,5 +1,6 @@
 const multer = require("multer");
-const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const multerStorageCloudinary = require('multer-storage-cloudinary');
+const CloudinaryStorage = multerStorageCloudinary.CloudinaryStorage || multerStorageCloudinary;
 const cloudinary = require("cloudinary").v2;
 
 const FILE_SIZE_LIMIT = 1024 * 1024 * 5;
