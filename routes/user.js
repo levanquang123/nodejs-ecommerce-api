@@ -3,6 +3,7 @@ const router = express.Router();
 
 const auth = require("../middleware/auth");
 const validate = require("../middleware/validate");
+const admin = require("../middleware/admin");
 
 const {
   registerSchema,
@@ -12,7 +13,7 @@ const {
 
 const userController = require("../controllers/user.controller");
 
-router.get("/", auth, userController.getAll);
+router.get("/", auth, admin, userController.getAll);
 
 router.get("/me", auth, userController.getMe);
 
