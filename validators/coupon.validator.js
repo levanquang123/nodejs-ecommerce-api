@@ -7,9 +7,9 @@ exports.createCouponSchema = Joi.object({
   minimumPurchaseAmount: Joi.number().min(0).optional(),
   endDate: Joi.date().required(),
   status: Joi.string().valid("active", "inactive").required(),
-  applicableCategory: Joi.string().optional(),
-  applicableSubCategory: Joi.string().optional(),
-  applicableProduct: Joi.string().optional(),
+  applicableCategory: Joi.string().allow(null, ""),
+  applicableSubCategory: Joi.string().allow(null, ""),
+  applicableProduct: Joi.string().allow(null, ""),
 });
 
 exports.updateCouponSchema = exports.createCouponSchema;

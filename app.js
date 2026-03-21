@@ -54,7 +54,8 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Cho phép tất cả các origin nếu ở môi trường dev hoặc origin nằm trong danh sách trắng
+      if (!origin || NODE_ENV === "development" || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS policy"));
