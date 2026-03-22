@@ -31,8 +31,8 @@ exports.getById = async (id) => {
   return await User.findById(id).select("-password");
 };
 
-exports.register = async ({ name, password }) => {
-  name = name.trim();
+exports.register = async ({ email, password }) => {
+  email = email.trim().toLowerCase();
 
   if (password.length < MIN_PASSWORD_LENGTH) {
     throw new Error(
@@ -40,13 +40,13 @@ exports.register = async ({ name, password }) => {
     );
   }
 
-  const exist = await User.findOne({ name });
-  if (exist) throw new Error("User already exists");
+  const exist = await User.findOne({ email });
+  if (exist) throw new Error("Email already exists");
 
   const hashed = await bcrypt.hash(password, 10);
 
   const user = await User.create({
-    name,
+    email,
     password: hashed,
   });
 
@@ -58,14 +58,14 @@ exports.register = async ({ name, password }) => {
   };
 };
 
-exports.login = async ({ name, password }) => {
-  name = name.trim();
+exports.login = async ({ email, password }) => {
+  email = email.trim().toLowerCase();
 
-  const user = await User.findOne({ name });
-  if (!user) throw new Error("Invalid name or password");
+  const user = await User.findOne({ email });
+  if (!user) throw new Error("Invalid email or password");
 
   const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) throw new Error("Invalid name or password");
+  if (!isMatch) throw new Error("Invalid email or password");
 
   const token = generateToken(user);
 
@@ -80,19 +80,19 @@ exports.update = async (id, currentUser, body) => {
     throw new Error("You can only update your own account");
   }
 
-  let { name, password } = body;
+  let { email, password } = body;
   const updateData = {};
 
-  if (name !== undefined) {
-    name = name.trim();
-    if (!name) throw new Error("Name cannot be empty");
+  if (email !== undefined) {
+    email = email.trim().toLowerCase();
+    if (!email) throw new Error("Email cannot be empty");
 
-    const exist = await User.findOne({ name });
+    const exist = await User.findOne({ email });
     if (exist && exist._id.toString() !== id) {
-      throw new Error("User name already exists");
+      throw new Error("Email already exists");
     }
 
-    updateData.name = name;
+    updateData.email = email;
   }
 
   if (password !== undefined) {
