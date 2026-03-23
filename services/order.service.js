@@ -2,8 +2,8 @@ const mongoose = require("mongoose");
 const Order = require("../model/order");
 const Product = require("../model/product");
 const orderPopulate = [
-  { path: "couponCode", select: "id couponCode discountType discountAmount" },
-  { path: "userID", select: "id name" },
+  { path: "couponCode", select: "_id couponCode discountType discountAmount" },
+  { path: "userID", select: "_id email" },
 ];
 
 exports.getAll = async () => {
