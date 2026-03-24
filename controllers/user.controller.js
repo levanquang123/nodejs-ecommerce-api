@@ -83,3 +83,35 @@ exports.remove = asyncHandler(async (req, res) => {
     message: "User deleted successfully.",
   });
 });
+
+exports.toggleFavorite = asyncHandler(async (req, res) => {
+  const { productId } = req.body;
+  const userId = req.user.id
+
+  if (!productId) {
+    return res.status(400).json({
+      success: false,
+      message: "Product ID is required",
+    });
+  }
+
+  const data = await userService.toggleFavorite(userId, productId);
+
+  res.json({
+    success: true,
+    message: "Favorite list updated successfully.",
+    data,
+  });
+});
+
+exports.getFavoriteProducts = asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+
+  const data = await userService.getFavoriteProducts(userId);
+
+  res.json({
+    success: true,
+    message: "Get favorite prodocuts successfully.",
+    data: data,
+  });
+});

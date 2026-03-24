@@ -13,6 +13,12 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    favorites: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Product",
+      },
+    ],
     role: {
       type: String,
       enum: ["user", "admin", "superadmin"],

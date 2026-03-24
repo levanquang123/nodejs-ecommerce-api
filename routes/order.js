@@ -12,13 +12,13 @@ const {
 
 const orderController = require("../controllers/order.controller");
 
-router.get("/", orderController.getAll);
+router.get("/", auth, admin, orderController.getAll);
 
-router.get("/orderByUserId/:userId", orderController.getByUserId);
+router.get("/orderByUserId/:userId", auth, orderController.getByUserId);
 
-router.get("/:id", orderController.getById);
+router.get("/:id", auth, orderController.getById);
 
-router.post("/", validate(createOrderSchema), orderController.create);
+router.post("/", auth, validate(createOrderSchema), orderController.create);
 
 router.put(
   "/:id",

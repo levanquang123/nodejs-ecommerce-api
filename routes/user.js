@@ -9,19 +9,31 @@ const {
   registerSchema,
   loginSchema,
   updateUserSchema,
+  toggleFavoriteSchema,
 } = require("../validators/user.validator");
 
 const userController = require("../controllers/user.controller");
 
-router.get("/", auth, admin, userController.getAll);
+// 1. Các route cố định (Static Routes) - PHẢI ĐỂ LÊN ĐẦU
+router.post("/register", validate(registerSchema), userController.register);
+router.post("/login", validate(loginSchema), userController.login);
 
+// Các route cần auth
 router.get("/me", auth, userController.getMe);
 
+// QUAN TRỌNG: Chuyển favorites lên trên :id
+router.get("/favorites", auth, userController.getFavoriteProducts); 
+
+router.post(
+  "/favorite",
+  auth,
+  validate(toggleFavoriteSchema), 
+  userController.toggleFavorite
+);
+
+// 2. Các route có chứa tham số (Dynamic Routes) - PHẢI ĐỂ DƯỚI CÙNG
+router.get("/", auth, admin, userController.getAll);
 router.get("/:id", auth, userController.getById);
-
-router.post("/register", validate(registerSchema), userController.register);
-
-router.post("/login", validate(loginSchema), userController.login);
 
 router.put(
   "/:id",
@@ -32,4 +44,5 @@ router.put(
 
 router.delete("/:id", auth, userController.remove);
 
+// 3. Export router sau khi đã định nghĩa xong tất cả
 module.exports = router;

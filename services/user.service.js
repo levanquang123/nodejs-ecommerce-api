@@ -126,3 +126,34 @@ exports.delete = async (id, currentUser) => {
   const user = await User.findByIdAndDelete(id);
   if (!user) throw new Error("User not found");
 };
+
+exports.toggleFavorite = async (userId, productId) => {
+  const user = await User.findById(userId);
+  if (!user) throw new Error("User not found");
+
+  const isFavorite = user.favorites.includes(productId);
+
+  if (isFavorite) {
+    user.favorites.pull(productId);
+  } else {
+    user.favorites.addToSet(productId);
+  }
+
+  await user.save();
+  
+  const updatedUser = await User.findById(userId)
+    .populate("favorites")
+    .select("-password");
+    
+  return updatedUser.favorites;
+};
+
+exports.getFavoriteProducts = async (userId) => {
+  const user = await User.findById(userId)
+    .populate("favorites")
+    .select("favorites");
+
+  if (!user) throw new Error("User not found");
+  
+  return user.favorites; 
+};
