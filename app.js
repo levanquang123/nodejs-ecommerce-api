@@ -81,6 +81,7 @@ const routes = {
   orders: require("./routes/order"),
   notification: require("./routes/notification"),
   payment: require("./routes/payment"),
+  cart: require("./routes/cart"),
 };
 
 Object.keys(routes).forEach((path) => {

@@ -4,6 +4,21 @@ const jwt = require("jsonwebtoken");
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const MIN_PASSWORD_LENGTH = 6;
+const ADDRESS_FIELDS = [
+  "fullName",
+  "phone",
+  "street",
+  "city",
+  "state",
+  "postalCode",
+  "country",
+];
+
+function createError(message, status) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
 
 function generateToken(user) {
   return jwt.sign(
@@ -24,6 +39,10 @@ exports.getAll = async () => {
 };
 
 exports.getMe = async (userId) => {
+  return await User.findById(userId).select("-password");
+};
+
+exports.getCurrentUserProfile = async (userId) => {
   return await User.findById(userId).select("-password");
 };
 
@@ -156,4 +175,19 @@ exports.getFavoriteProducts = async (userId) => {
   if (!user) throw new Error("User not found");
   
   return user.favorites; 
+};
+
+exports.updateUserAddress = async (userId, payload) => {
+  const user = await User.findById(userId).select("-password");
+  if (!user) throw createError("User not found", 404);
+
+  const nextAddress = {};
+  ADDRESS_FIELDS.forEach((field) => {
+    nextAddress[field] = payload[field] ?? "";
+  });
+
+  user.address = nextAddress;
+  await user.save();
+
+  return user;
 };

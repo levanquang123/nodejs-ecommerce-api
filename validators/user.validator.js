@@ -21,3 +21,13 @@ exports.toggleFavoriteSchema = Joi.object({
     'any.required': 'Product ID is required.'
   }),
 });
+
+exports.updateAddressSchema = Joi.object({
+  fullName: Joi.string().allow("").default(""),
+  phone: Joi.string().allow("").default(""),
+  street: Joi.string().allow("").default(""),
+  city: Joi.string().allow("").default(""),
+  state: Joi.string().allow("").default(""),
+  postalCode: Joi.string().allow("").default(""),
+  country: Joi.string().allow("").default(""),
+}).min(1);

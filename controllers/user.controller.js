@@ -12,7 +12,7 @@ exports.getAll = asyncHandler(async (req, res) => {
 });
 
 exports.getMe = asyncHandler(async (req, res) => {
-  const data = await userService.getMe(req.user.id);
+  const data = await userService.getCurrentUserProfile(req.user.id);
 
   if (!data) {
     return res.status(404).json({
@@ -24,6 +24,16 @@ exports.getMe = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     message: "User retrieved successfully.",
+    data,
+  });
+});
+
+exports.updateMyAddress = asyncHandler(async (req, res) => {
+  const data = await userService.updateUserAddress(req.user.id, req.body);
+
+  res.json({
+    success: true,
+    message: "Address updated successfully.",
     data,
   });
 });

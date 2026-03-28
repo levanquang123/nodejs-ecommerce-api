@@ -10,6 +10,7 @@ const {
   loginSchema,
   updateUserSchema,
   toggleFavoriteSchema,
+  updateAddressSchema,
 } = require("../validators/user.validator");
 
 const userController = require("../controllers/user.controller");
@@ -20,6 +21,7 @@ router.post("/login", validate(loginSchema), userController.login);
 
 // Các route cần auth
 router.get("/me", auth, userController.getMe);
+router.put("/me/address", auth, validate(updateAddressSchema), userController.updateMyAddress);
 
 // QUAN TRỌNG: Chuyển favorites lên trên :id
 router.get("/favorites", auth, userController.getFavoriteProducts); 
