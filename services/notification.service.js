@@ -2,14 +2,13 @@ const Notification = require("../model/notification");
 const OneSignal = require("@onesignal/node-onesignal");
 
 const configuration = OneSignal.createConfiguration({
-  authMethods: {
-    app_key: {
-      tokenProvider: {
-        getToken: () => process.env.ONE_SIGNAL_REST_API_KEY,
-      },
-    },
-  },
+  restApiKey: process.env.ONE_SIGNAL_REST_API_KEY,
 });
+
+if (!process.env.ONE_SIGNAL_APP_ID || !process.env.ONE_SIGNAL_REST_API_KEY) {
+  throw new Error("Missing OneSignal env vars");
+}
+
 
 const client = new OneSignal.DefaultApi(configuration);
 const APP_ID = process.env.ONE_SIGNAL_APP_ID;
