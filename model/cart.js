@@ -14,8 +14,44 @@ const cartItemSchema = new mongoose.Schema(
       min: 1,
       default: 1,
     },
-
-    variant: {
+    variantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
+    sku: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    attributes: {
+      type: [
+        new mongoose.Schema(
+          {
+            variantTypeId: {
+              type: mongoose.Schema.Types.ObjectId,
+              default: null,
+            },
+            variantTypeName: {
+              type: String,
+              trim: true,
+              default: "",
+            },
+            variantId: {
+              type: mongoose.Schema.Types.ObjectId,
+              default: null,
+            },
+            variantName: {
+              type: String,
+              trim: true,
+              default: "",
+            },
+          },
+          { _id: false }
+        ),
+      ],
+      default: [],
+    },
+    image: {
       type: String,
       trim: true,
       default: "",

@@ -49,7 +49,10 @@ exports.update = async (id, { name, variantTypeId }) => {
 
 exports.delete = async (id) => {
   const productCount = await Product.countDocuments({
-    proVariantId: id,
+    $or: [
+      { proVariantId: id },
+      { "variants.attributes.variantId": id },
+    ],
   });
 
   if (productCount > 0) {

@@ -37,6 +37,46 @@ const orderSchema = new mongoose.Schema({
       variant: {
         type: String,
       },
+      variantId: {
+        type: mongoose.Schema.Types.ObjectId,
+        default: null,
+      },
+      sku: {
+        type: String,
+        trim: true,
+      },
+      attributes: {
+        type: [
+          new mongoose.Schema(
+            {
+              variantTypeId: {
+                type: mongoose.Schema.Types.ObjectId,
+                default: null,
+              },
+              variantTypeName: {
+                type: String,
+                trim: true,
+                default: "",
+              },
+              variantId: {
+                type: mongoose.Schema.Types.ObjectId,
+                default: null,
+              },
+              variantName: {
+                type: String,
+                trim: true,
+                default: "",
+              },
+            },
+            { _id: false }
+          ),
+        ],
+        default: [],
+      },
+      image: {
+        type: String,
+        trim: true,
+      },
     },
   ],
   totalPrice: {
