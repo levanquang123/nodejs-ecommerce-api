@@ -54,14 +54,8 @@ function toAttributeSnapshot(attributes) {
   if (!Array.isArray(attributes)) return [];
 
   return attributes.map((attribute) => ({
-    variantTypeId:
-      attribute.variantTypeId?._id ||
-      attribute.variantTypeId ||
-      null,
-    variantTypeName:
-      attribute.variantTypeId?.name ||
-      attribute.variantTypeName ||
-      "",
+    variantTypeId: attribute.variantTypeId?._id || attribute.variantTypeId || null,
+    variantTypeName: attribute.variantTypeId?.name || attribute.variantTypeName || "",
     variantId: attribute.variantId?._id || attribute.variantId || null,
     variantName: attribute.variantId?.name || attribute.variantName || "",
   }));
@@ -87,8 +81,28 @@ async function getProductWithVariantDetails(productId) {
     .populate("variants.attributes.variantId", "name variantTypeId");
 }
 
+function getCartItemProductId(item) {
+  if (!item?.productId) return null;
+
+  if (typeof item.productId === "object" && item.productId._id) {
+    return item.productId._id.toString();
+  }
+
+  return String(item.productId);
+}
+
+function pruneInvalidCartItems(cart) {
+  if (!Array.isArray(cart.items)) return false;
+  const prevLength = cart.items.length;
+  cart.items = cart.items.filter((item) => !!getCartItemProductId(item));
+  return cart.items.length !== prevLength;
+}
+
 function isSameCartItem(item, productId, variantId, variant) {
-  if (item.productId._id.toString() !== productId) {
+  const cartProductId = getCartItemProductId(item);
+  if (!cartProductId) return false;
+
+  if (cartProductId !== String(productId)) {
     return false;
   }
 
@@ -115,7 +129,10 @@ async function getOrCreateCart(userId) {
 exports.getOrCreateCart = getOrCreateCart;
 
 exports.getCartByUser = async (userId) => {
-  return await getOrCreateCart(userId);
+  const cart = await getOrCreateCart(userId);
+  const changed = pruneInvalidCartItems(cart);
+  if (changed) await cart.save();
+  return await populateCart(cart._id);
 };
 
 exports.addItemToCart = async (userId, payload) => {
@@ -138,14 +155,13 @@ exports.addItemToCart = async (userId, payload) => {
       ? product.offerPrice
       : product.price;
 
-  const availableQuantity = selectedVariant
-    ? selectedVariant.quantity
-    : product.quantity;
+  const availableQuantity = selectedVariant ? selectedVariant.quantity : product.quantity;
 
   const cart = await getOrCreateCart(userId);
+  pruneInvalidCartItems(cart);
 
-  const existingItem = cart.items.find(
-    (item) => isSameCartItem(item, productId, variantId, variant)
+  const existingItem = cart.items.find((item) =>
+    isSameCartItem(item, productId, variantId, variant)
   );
 
   const totalQuantity = (existingItem?.quantity || 0) + quantity;
@@ -156,7 +172,7 @@ exports.addItemToCart = async (userId, payload) => {
   if (existingItem) {
     existingItem.quantity += quantity;
     existingItem.priceAtAdd = priceAtAdd;
-    existingItem.variant = variantLabel;
+    existingItem.variant = variantLabel || variant;
     existingItem.sku = selectedVariant?.sku || "";
     existingItem.attributes = attributeSnapshot;
     existingItem.image = getVariantImage(selectedVariant);
@@ -183,9 +199,10 @@ exports.updateCartItem = async (userId, payload) => {
   const variantId = normalizeVariantId(payload.variantId);
 
   const cart = await getOrCreateCart(userId);
+  pruneInvalidCartItems(cart);
 
-  const existingItem = cart.items.find(
-    (item) => isSameCartItem(item, productId, variantId, variant)
+  const existingItem = cart.items.find((item) =>
+    isSameCartItem(item, productId, variantId, variant)
   );
 
   if (!existingItem) {
@@ -198,9 +215,7 @@ exports.updateCartItem = async (userId, payload) => {
   const selectedVariant = getActiveVariant(product, variantId);
   const attributeSnapshot = toAttributeSnapshot(selectedVariant?.attributes);
   const variantLabel = buildVariantLabel(attributeSnapshot);
-  const availableQuantity = selectedVariant
-    ? selectedVariant.quantity
-    : product.quantity;
+  const availableQuantity = selectedVariant ? selectedVariant.quantity : product.quantity;
 
   if (quantity > availableQuantity) {
     throw createError("Requested quantity exceeds available stock.", 400);
@@ -220,7 +235,6 @@ exports.updateCartItem = async (userId, payload) => {
       : product.price;
 
   await cart.save();
-
   return await populateCart(cart._id);
 };
 
@@ -230,9 +244,10 @@ exports.removeCartItem = async (userId, payload) => {
   const variantId = normalizeVariantId(payload.variantId);
 
   const cart = await getOrCreateCart(userId);
+  pruneInvalidCartItems(cart);
 
-  const index = cart.items.findIndex(
-    (item) => isSameCartItem(item, productId, variantId, variant)
+  const index = cart.items.findIndex((item) =>
+    isSameCartItem(item, productId, variantId, variant)
   );
 
   if (index === -1) {
