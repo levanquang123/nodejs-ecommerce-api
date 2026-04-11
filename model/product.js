@@ -121,6 +121,19 @@ const productSchema = new mongoose.Schema({
     variants: {
         type: [productVariantSchema],
         default: []
+    },
+    reviewSummary: {
+        ratingAverage: {
+            type: Number,
+            default: 0,
+            min: 0,
+            max: 5
+        },
+        reviewCount: {
+            type: Number,
+            default: 0,
+            min: 0
+        }
     }
 }, { timestamps: true });
 
