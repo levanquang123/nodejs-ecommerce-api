@@ -1,4 +1,12 @@
-const stripe = require("stripe")(process.env.STRIPE_SKRT_KET_TST);
+const stripeClient = require("stripe");
+
+function getStripe() {
+  if (!process.env.STRIPE_SKRT_KET_TST || !process.env.STRIPE_PBLK_KET_TST) {
+    throw new Error("Missing Stripe env vars");
+  }
+
+  return stripeClient(process.env.STRIPE_SKRT_KET_TST);
+}
 
 exports.createPaymentIntent = async ({
   email,
@@ -8,6 +16,8 @@ exports.createPaymentIntent = async ({
   currency,
   description,
 }) => {
+  const stripe = getStripe();
+
   const customer = await stripe.customers.create({
     email,
     name,

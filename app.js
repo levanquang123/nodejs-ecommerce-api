@@ -1,61 +1,75 @@
 const express = require("express");
 const mongoose = require("mongoose");
-const dotenv = require("dotenv");
 const cors = require("cors");
 const helmet = require("helmet");
 const compression = require("compression");
 const morgan = require("morgan");
 const winston = require("winston");
+const config = require("./config/env");
+const {
+  apiLimiter,
+  authLimiter,
+  paymentLimiter,
+} = require("./middleware/rateLimit");
 
-dotenv.config();
 const app = express();
-const PORT = process.env.PORT || 3000;
-const MONGO_URL = process.env.MONGO_URL;
-const NODE_ENV = process.env.NODE_ENV || "development";
+
+if (config.isProduction) {
+  app.set("trust proxy", 1);
+}
 
 const logger = winston.createLogger({
-  level: "error",
+  level: config.isProduction ? "info" : "debug",
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.json()
   ),
   transports: [
-    new winston.transports.File({ filename: "error.log", level: "error" }),
     new winston.transports.Console({ format: winston.format.simple() }),
+    ...(config.isProduction || config.isTest
+      ? []
+      : [new winston.transports.File({ filename: "error.log", level: "error" })]),
   ],
 });
 
-if (!MONGO_URL) {
-  console.error("❌ MONGO_URL is missing in .env");
-  process.exit(1);
-}
-
 mongoose
-  .connect(MONGO_URL)
-  .then(() => console.log("✅ Database Connected Successfully"))
+  .connect(config.mongoUrl)
+  .then(() => console.log("Database connected successfully"))
   .catch((err) => {
-    console.error("❌ Database Connection Error:", err.message);
+    console.error("Database connection error:", err.message);
     process.exit(1);
   });
 
 app.use(helmet());
 app.use(compression());
-app.use(morgan("dev"));
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(morgan(config.isProduction ? "combined" : "dev"));
 
-const allowedOrigins = [
-  "https://levanquang.com",
-  "https://shop.levanquang.com",
-  "https://www.levanquang.com",
-  "http://localhost:3000",
-];
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    success: true,
+    status: "ok",
+    env: config.env,
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get("/ready", (req, res) => {
+  const isDatabaseReady = mongoose.connection.readyState === 1;
+
+  res.status(isDatabaseReady ? 200 : 503).json({
+    success: isDatabaseReady,
+    status: isDatabaseReady ? "ready" : "not_ready",
+    checks: {
+      database: isDatabaseReady ? "connected" : "disconnected",
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Cho phép tất cả các origin nếu ở môi trường dev hoặc origin nằm trong danh sách trắng
-      if (!origin || NODE_ENV === "development" || allowedOrigins.includes(origin)) {
+      if (!origin || config.isDevelopment || config.corsOrigins.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS policy"));
@@ -64,6 +78,18 @@ app.use(
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "Accept"],
     credentials: true,
+  })
+);
+
+app.use(apiLimiter);
+app.use("/users/login", authLimiter);
+app.use("/users/register", authLimiter);
+app.use("/payment/stripe", paymentLimiter);
+app.use(express.json({ limit: config.isProduction ? "1mb" : "10mb" }));
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: config.isProduction ? "1mb" : "10mb",
   })
 );
 
@@ -92,21 +118,38 @@ Object.keys(routes).forEach((path) => {
 app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
-    message: "E-commerce API is live 🚀",
-    env: NODE_ENV,
+    message: "E-commerce API is live",
+    env: config.env,
     timestamp: new Date().toISOString(),
+  });
+});
+
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Route not found",
   });
 });
 
 app.use((err, req, res, next) => {
   const statusCode = err.status || 500;
+  const isOperational = statusCode < 500;
 
-  logger.error(`${req.method} ${req.url} - ${err.message}`);
+  logger.error({
+    method: req.method,
+    url: req.originalUrl,
+    statusCode,
+    message: err.message,
+    stack: err.stack,
+  });
 
   res.status(statusCode).json({
     success: false,
-    message: err.message || "Internal Server Error",
-    stack: NODE_ENV === "development" ? err.stack : null,
+    message:
+      config.isProduction && !isOperational
+        ? "Internal Server Error"
+        : err.message || "Internal Server Error",
+    stack: config.isDevelopment ? err.stack : undefined,
   });
 });
 

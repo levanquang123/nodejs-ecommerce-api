@@ -21,11 +21,15 @@ router.post(
 
 router.get(
   "/track-notification/:id",
+  auth,
+  admin,
   notificationController.track
 );
 
 router.get(
   "/all-notification",
+  auth,
+  admin,
   notificationController.getAll
 );
 

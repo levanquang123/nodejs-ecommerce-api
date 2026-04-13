@@ -1,8 +1,8 @@
 const User = require("../model/user");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const config = require("../config/env");
 
-const JWT_SECRET = process.env.JWT_SECRET;
 const MIN_PASSWORD_LENGTH = 6;
 const ADDRESS_FIELDS = [
   "fullName",
@@ -23,7 +23,7 @@ function createError(message, status) {
 function generateToken(user) {
   return jwt.sign(
     { id: user._id, role: user.role },
-    JWT_SECRET,
+    config.jwtSecret,
     { expiresIn: "7d" }
   );
 }

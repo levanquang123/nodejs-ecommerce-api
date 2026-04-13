@@ -6,6 +6,8 @@ const couponSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      trim: true,
+      lowercase: true,
     },
     discountType: {
       type: String,
@@ -15,10 +17,20 @@ const couponSchema = new mongoose.Schema(
     discountAmount: {
       type: Number,
       required: true,
+      validate: {
+        validator(value) {
+          if (value <= 0) return false;
+          if (this.discountType === "percentage") return value <= 100;
+          return true;
+        },
+        message: "Discount amount is not valid for the selected discount type.",
+      },
     },
     minimumPurchaseAmount: {
       type: Number,
       required: true,
+      min: 0,
+      default: 0,
     },
     endDate: {
       type: Date,

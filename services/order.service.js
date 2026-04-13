@@ -6,6 +6,20 @@ const orderPopulate = [
   { path: "userID", select: "_id email" },
 ];
 
+function createError(message, status) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
+function isAdmin(user) {
+  return user && (user.role === "admin" || user.role === "superadmin");
+}
+
+function canAccessUserResource(targetUserId, currentUser) {
+  return isAdmin(currentUser) || currentUser?.id === targetUserId.toString();
+}
+
 function toAttributeSnapshot(attributes) {
   if (!Array.isArray(attributes)) return [];
 
@@ -40,17 +54,29 @@ exports.getAll = async () => {
     .sort({ _id: -1 });
 };
 
-exports.getByUserId = async (userId) => {
+exports.getByUserId = async (userId, currentUser) => {
+  if (!canAccessUserResource(userId, currentUser)) {
+    throw createError("You can only access your own orders.", 403);
+  }
+
   return await Order.find({ userID: userId })
     .populate(orderPopulate[0])
     .populate(orderPopulate[1])
     .sort({ _id: -1 });
 };
 
-exports.getById = async (id) => {
-  return await Order.findById(id)
+exports.getById = async (id, currentUser) => {
+  const order = await Order.findById(id)
     .populate(orderPopulate[0])
     .populate(orderPopulate[1]);
+
+  if (!order) return null;
+
+  if (!canAccessUserResource(order.userID._id || order.userID, currentUser)) {
+    throw createError("You can only access your own orders.", 403);
+  }
+
+  return order;
 };
 
 exports.create = async (body) => {

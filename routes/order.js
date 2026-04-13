@@ -28,6 +28,6 @@ router.put(
   orderController.update
 );
 
-router.delete("/:id", orderController.remove);
+router.delete("/:id", auth, admin, orderController.remove);
 
 module.exports = router;

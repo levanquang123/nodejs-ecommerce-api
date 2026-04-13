@@ -12,7 +12,7 @@ exports.getAll = asyncHandler(async (req, res) => {
 });
 
 exports.getByUserId = asyncHandler(async (req, res) => {
-  const data = await orderService.getByUserId(req.params.userId);
+  const data = await orderService.getByUserId(req.params.userId, req.user);
 
   res.json({
     success: true,
@@ -22,7 +22,7 @@ exports.getByUserId = asyncHandler(async (req, res) => {
 });
 
 exports.getById = asyncHandler(async (req, res) => {
-  const data = await orderService.getById(req.params.id);
+  const data = await orderService.getById(req.params.id, req.user);
 
   if (!data) {
     return res.status(404).json({

@@ -1,6 +1,46 @@
 const Coupon = require("../model/couponCode");
 const Product = require("../model/product");
 
+const optionalObjectIdFields = [
+  "applicableCategory",
+  "applicableSubCategory",
+  "applicableProduct",
+];
+
+function normalizeCouponData(data) {
+  const normalized = { ...data };
+
+  if (normalized.couponCode) {
+    normalized.couponCode = normalized.couponCode.trim().toLowerCase();
+  }
+
+  if (normalized.minimumPurchaseAmount === undefined || normalized.minimumPurchaseAmount === null) {
+    normalized.minimumPurchaseAmount = 0;
+  }
+
+  for (const field of optionalObjectIdFields) {
+    if (normalized[field] === "" || normalized[field] === null) {
+      normalized[field] = undefined;
+    }
+  }
+
+  return normalized;
+}
+
+function validateDiscount({ discountType, discountAmount }) {
+  if (discountAmount <= 0) {
+    throw new Error(
+      discountType === "percentage"
+        ? "Percentage discount must be greater than 0."
+        : "Fixed discount must be greater than 0."
+    );
+  }
+
+  if (discountType === "percentage" && discountAmount > 100) {
+    throw new Error("Percentage discount cannot be greater than 100.");
+  }
+}
+
 exports.getAll = async () => {
   return await Coupon.find()
     .populate("applicableCategory", "id name")
@@ -16,7 +56,8 @@ exports.getById = async (id) => {
 };
 
 exports.create = async (data) => {
-  data.couponCode = data.couponCode.toLowerCase();
+  data = normalizeCouponData(data);
+  validateDiscount(data);
 
   const exist = await Coupon.findOne({ couponCode: data.couponCode });
   if (exist) throw new Error("Coupon already exists.");
@@ -26,7 +67,8 @@ exports.create = async (data) => {
 };
 
 exports.update = async (id, data) => {
-  data.couponCode = data.couponCode.toLowerCase();
+  data = normalizeCouponData(data);
+  validateDiscount(data);
 
   const exist = await Coupon.findOne({
     couponCode: data.couponCode,
@@ -35,7 +77,10 @@ exports.update = async (id, data) => {
 
   if (exist) throw new Error("Coupon already exists.");
 
-  const updated = await Coupon.findByIdAndUpdate(id, data, { new: true });
+  const updated = await Coupon.findByIdAndUpdate(id, data, {
+    new: true,
+    runValidators: true,
+  });
   if (!updated) throw new Error("Coupon not found.");
 
   return updated;

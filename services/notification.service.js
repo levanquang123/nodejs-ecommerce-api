@@ -5,15 +5,17 @@ const configuration = OneSignal.createConfiguration({
   restApiKey: process.env.ONE_SIGNAL_REST_API_KEY,
 });
 
-if (!process.env.ONE_SIGNAL_APP_ID || !process.env.ONE_SIGNAL_REST_API_KEY) {
-  throw new Error("Missing OneSignal env vars");
-}
-
-
 const client = new OneSignal.DefaultApi(configuration);
 const APP_ID = process.env.ONE_SIGNAL_APP_ID;
 
+function assertOneSignalConfigured() {
+  if (!APP_ID || !process.env.ONE_SIGNAL_REST_API_KEY) {
+    throw new Error("Missing OneSignal env vars");
+  }
+}
+
 exports.sendNotification = async ({ title, description, imageUrl }) => {
+  assertOneSignalConfigured();
 
   const notification = new OneSignal.Notification();
   notification.app_id = APP_ID;
@@ -46,6 +48,8 @@ exports.sendNotification = async ({ title, description, imageUrl }) => {
 };
 
 exports.trackNotification = async (id) => {
+  assertOneSignalConfigured();
+
   const response = await client.getNotification(APP_ID, id);
 
   const stats = response.platform_delivery_stats;

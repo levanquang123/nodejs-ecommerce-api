@@ -1,6 +1,6 @@
 const app = require("./app");
-const PORT = process.env.PORT || 3000;
+const config = require("./config/env");
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+app.listen(config.port, "0.0.0.0", () => {
+  console.log(`Server running in ${config.env} mode on port ${config.port}`);
 });
