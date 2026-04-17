@@ -2,12 +2,16 @@ const asyncHandler = require("express-async-handler");
 const reviewService = require("../services/review.service");
 
 exports.getByProduct = asyncHandler(async (req, res) => {
-  const data = await reviewService.getByProduct(req.params.productId);
+  const result = await reviewService.getByProduct(req.params.productId, {
+    rating: req.query.rating,
+    sort: req.query.sort,
+  });
 
   res.json({
     success: true,
     message: "Reviews retrieved successfully.",
-    data,
+    data: result.reviews,
+    meta: result.meta,
   });
 });
 

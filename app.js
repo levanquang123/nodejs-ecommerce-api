@@ -1,3 +1,5 @@
+require("./instrument");
+
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -5,6 +7,7 @@ const helmet = require("helmet");
 const compression = require("compression");
 const morgan = require("morgan");
 const winston = require("winston");
+const Sentry = require("@sentry/node");
 const config = require("./config/env");
 const {
   apiLimiter,
@@ -124,12 +127,19 @@ app.get("/", (req, res) => {
   });
 });
 
+app.get("/debug-sentry", (req, res) => {
+  throw new Error("Sentry test error");
+});
+
+
 app.use((req, res) => {
   res.status(404).json({
     success: false,
     message: "Route not found",
   });
 });
+
+Sentry.setupExpressErrorHandler(app);
 
 app.use((err, req, res, next) => {
   const statusCode = err.status || 500;
@@ -145,6 +155,7 @@ app.use((err, req, res, next) => {
 
   res.status(statusCode).json({
     success: false,
+    errorId: res.sentry,
     message:
       config.isProduction && !isOperational
         ? "Internal Server Error"

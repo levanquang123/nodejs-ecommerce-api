@@ -29,6 +29,10 @@ const schema = Joi.object({
   CLOUDINARY_API_SECRET: Joi.string().allow("", null),
   ONE_SIGNAL_APP_ID: Joi.string().allow("", null),
   ONE_SIGNAL_REST_API_KEY: Joi.string().allow("", null),
+  SENTRY_DSN: Joi.string().uri().allow("", null),
+  SENTRY_RELEASE: Joi.string().allow("", null),
+  SENTRY_TRACES_SAMPLE_RATE: Joi.number().min(0).max(1).default(0),
+  SENTRY_SEND_DEFAULT_PII: Joi.boolean().truthy("true").falsy("false").default(false),
 }).unknown(true);
 
 const { error, value: env } = schema.validate(process.env, {
@@ -100,5 +104,11 @@ module.exports = {
     apiMax: env.RATE_LIMIT_MAX || (isProduction ? 300 : 1000),
     authMax: env.AUTH_RATE_LIMIT_MAX || (isProduction ? 10 : 100),
     paymentMax: env.PAYMENT_RATE_LIMIT_MAX || (isProduction ? 20 : 100),
+  },
+  sentry: {
+    dsn: env.SENTRY_DSN,
+    release: env.SENTRY_RELEASE || `store_api@${require("../package.json").version}`,
+    tracesSampleRate: env.NODE_ENV === "production" ? 0.1 : 1.0,
+    sendDefaultPii: env.SENTRY_SEND_DEFAULT_PII,
   },
 };
