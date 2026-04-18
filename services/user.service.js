@@ -29,17 +29,23 @@ function generateAccessToken(user) {
   );
 }
 
-function generateRefreshToken(user) {
+function generateRefreshToken(user, expiresIn = config.refreshToken.expiresIn) {
   return jwt.sign(
     { id: user._id, role: user.role, tokenType: "refresh" },
     config.refreshToken.secret,
-    { expiresIn: config.refreshToken.expiresIn }
+    { expiresIn }
   );
 }
 
 function sanitizeUser(user) {
   const plain = user.toObject ? user.toObject() : user;
-  const { password, refreshTokenHash, refreshTokenExpiresAt, ...rest } = plain;
+  const {
+    password,
+    refreshTokenHash,
+    refreshTokenExpiresAt,
+    refreshTokenSessionExpiresAt,
+    ...rest
+  } = plain;
   return rest;
 }
 
@@ -58,8 +64,29 @@ function buildAuthPayload(user, { accessToken, refreshToken }) {
   };
 }
 
-async function issueTokensForUser(user) {
-  const refreshToken = generateRefreshToken(user);
+function getRefreshTokenExpiresInSeconds(sessionExpiresAt) {
+  const remainingSessionMs = sessionExpiresAt.getTime() - Date.now();
+  const refreshTokenMs = Math.min(config.refreshToken.expiresInMs, remainingSessionMs);
+
+  return Math.max(1, Math.floor(refreshTokenMs / 1000));
+}
+
+async function issueTokensForUser(user, { startNewSession = false } = {}) {
+  if (startNewSession || !user.refreshTokenSessionExpiresAt) {
+    user.refreshTokenSessionExpiresAt = new Date(
+      Date.now() + config.refreshToken.maxAgeMs
+    );
+  }
+
+  if (user.refreshTokenSessionExpiresAt.getTime() <= Date.now()) {
+    await revokeRefreshToken(user);
+    throw createError("Session expired. Please login again.", 401);
+  }
+
+  const refreshTokenExpiresInSeconds = getRefreshTokenExpiresInSeconds(
+    user.refreshTokenSessionExpiresAt
+  );
+  const refreshToken = generateRefreshToken(user, refreshTokenExpiresInSeconds);
   const decodedRefresh = jwt.verify(refreshToken, config.refreshToken.secret);
   const accessToken = generateAccessToken(user);
 
@@ -73,6 +100,7 @@ async function issueTokensForUser(user) {
 async function revokeRefreshToken(user) {
   user.refreshTokenHash = null;
   user.refreshTokenExpiresAt = null;
+  user.refreshTokenSessionExpiresAt = null;
   await user.save();
 }
 
@@ -111,7 +139,7 @@ exports.register = async ({ email, password }) => {
     password: hashed,
   });
 
-  return await issueTokensForUser(user);
+  return await issueTokensForUser(user, { startNewSession: true });
 };
 
 exports.login = async ({ email, password }) => {
@@ -123,7 +151,7 @@ exports.login = async ({ email, password }) => {
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) throw new Error("Invalid email or password");
 
-  return await issueTokensForUser(user);
+  return await issueTokensForUser(user, { startNewSession: true });
 };
 
 exports.update = async (id, currentUser, body) => {
@@ -241,7 +269,7 @@ exports.refreshToken = async ({ refreshToken }) => {
   }
 
   const user = await User.findById(decoded.id).select(
-    "+refreshTokenHash +refreshTokenExpiresAt"
+    "+refreshTokenHash +refreshTokenExpiresAt +refreshTokenSessionExpiresAt"
   );
 
   if (!user || !user.refreshTokenHash || !user.refreshTokenExpiresAt) {
@@ -251,6 +279,14 @@ exports.refreshToken = async ({ refreshToken }) => {
   if (user.refreshTokenExpiresAt.getTime() < Date.now()) {
     await revokeRefreshToken(user);
     throw createError("Refresh token expired. Please login again.", 401);
+  }
+
+  if (
+    user.refreshTokenSessionExpiresAt &&
+    user.refreshTokenSessionExpiresAt.getTime() <= Date.now()
+  ) {
+    await revokeRefreshToken(user);
+    throw createError("Session expired. Please login again.", 401);
   }
 
   const incomingHash = hashToken(refreshToken);
@@ -264,7 +300,7 @@ exports.refreshToken = async ({ refreshToken }) => {
 
 exports.logout = async (userId) => {
   const user = await User.findById(userId).select(
-    "+refreshTokenHash +refreshTokenExpiresAt"
+    "+refreshTokenHash +refreshTokenExpiresAt +refreshTokenSessionExpiresAt"
   );
 
   if (!user) return;

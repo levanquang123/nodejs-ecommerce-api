@@ -79,6 +79,11 @@ const userSchema = new mongoose.Schema(
       default: null,
       select: false,
     },
+    refreshTokenSessionExpiresAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
   },
   { timestamps: true }
 );

@@ -20,6 +20,7 @@ const schema = Joi.object({
   REFRESH_TOKEN_SECRET: Joi.string().allow("", null),
   ACCESS_TOKEN_EXPIRES_IN: Joi.string().default("2m"),
   REFRESH_TOKEN_EXPIRES_IN: Joi.string().default("15m"),
+  REFRESH_TOKEN_MAX_AGE: Joi.string().default("24h"),
   CORS_ORIGINS: Joi.string().allow("", null),
   RATE_LIMIT_WINDOW_MS: Joi.number().integer().positive().default(15 * 60 * 1000),
   RATE_LIMIT_MAX: Joi.number().integer().positive(),
@@ -56,6 +57,9 @@ const accessTokenSecret = env.ACCESS_TOKEN_SECRET;
 const refreshTokenSecret = env.REFRESH_TOKEN_SECRET || accessTokenSecret;
 const accessTokenExpiresIn = env.ACCESS_TOKEN_EXPIRES_IN;
 const refreshTokenExpiresIn = env.REFRESH_TOKEN_EXPIRES_IN;
+const refreshTokenMaxAge = env.REFRESH_TOKEN_MAX_AGE;
+const refreshTokenExpiresInMs = parseDurationMs(refreshTokenExpiresIn, "REFRESH_TOKEN_EXPIRES_IN");
+const refreshTokenMaxAgeMs = parseDurationMs(refreshTokenMaxAge, "REFRESH_TOKEN_MAX_AGE");
 const productionOnlyEnv = [
   "STRIPE_SKRT_KET_TST",
   "STRIPE_PBLK_KET_TST",
@@ -101,6 +105,26 @@ function parseCorsOrigins(value) {
     .filter(Boolean);
 }
 
+function parseDurationMs(value, fieldName) {
+  const match = String(value).trim().match(/^(\d+)(ms|s|m|h|d)$/);
+
+  if (!match) {
+    throw new Error(`${fieldName} must use a duration like 15m, 7d, or 24h.`);
+  }
+
+  const amount = Number(match[1]);
+  const unit = match[2];
+  const multipliers = {
+    ms: 1,
+    s: 1000,
+    m: 60 * 1000,
+    h: 60 * 60 * 1000,
+    d: 24 * 60 * 60 * 1000,
+  };
+
+  return amount * multipliers[unit];
+}
+
 module.exports = {
   env: env.NODE_ENV,
   isDevelopment: env.NODE_ENV === "development",
@@ -115,6 +139,9 @@ module.exports = {
   refreshToken: {
     secret: refreshTokenSecret,
     expiresIn: refreshTokenExpiresIn,
+    expiresInMs: refreshTokenExpiresInMs,
+    maxAge: refreshTokenMaxAge,
+    maxAgeMs: refreshTokenMaxAgeMs,
   },
   corsOrigins: parseCorsOrigins(env.CORS_ORIGINS),
   rateLimit: {
