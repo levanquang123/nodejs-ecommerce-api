@@ -8,6 +8,7 @@ const admin = require("../middleware/admin");
 const {
   registerSchema,
   loginSchema,
+  refreshTokenSchema,
   updateUserSchema,
   toggleFavoriteSchema,
   updateAddressSchema,
@@ -18,10 +19,12 @@ const userController = require("../controllers/user.controller");
 // 1. Các route cố định (Static Routes) - PHẢI ĐỂ LÊN ĐẦU
 router.post("/register", validate(registerSchema), userController.register);
 router.post("/login", validate(loginSchema), userController.login);
+router.post("/refresh-token", validate(refreshTokenSchema), userController.refreshToken);
 
 // Các route cần auth
 router.get("/me", auth, userController.getMe);
 router.put("/me/address", auth, validate(updateAddressSchema), userController.updateMyAddress);
+router.post("/logout", auth, userController.logout);
 
 // QUAN TRỌNG: Chuyển favorites lên trên :id
 router.get("/favorites", auth, userController.getFavoriteProducts); 

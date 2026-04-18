@@ -14,6 +14,8 @@ const posterSchema = new mongoose.Schema({
   timestamps: true 
 });
 
+posterSchema.index({ posterName: 1 }, { unique: true });
+
 const Poster = mongoose.model('Poster', posterSchema);
 
 module.exports = Poster;

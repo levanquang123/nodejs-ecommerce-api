@@ -16,4 +16,7 @@ const variantSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+variantSchema.index({ variantTypeId: 1 });
+variantSchema.index({ variantTypeId: 1, name: 1 });
+
 module.exports = mongoose.model("Variant", variantSchema);

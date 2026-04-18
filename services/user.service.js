@@ -1,6 +1,7 @@
 const User = require("../model/user");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const config = require("../config/env");
 
 const MIN_PASSWORD_LENGTH = 6;
@@ -20,18 +21,59 @@ function createError(message, status) {
   return error;
 }
 
-function generateToken(user) {
+function generateAccessToken(user) {
   return jwt.sign(
-    { id: user._id, role: user.role },
-    config.jwtSecret,
-    { expiresIn: "7d" }
+    { id: user._id, role: user.role, tokenType: "access" },
+    config.accessToken.secret,
+    { expiresIn: config.accessToken.expiresIn }
+  );
+}
+
+function generateRefreshToken(user) {
+  return jwt.sign(
+    { id: user._id, role: user.role, tokenType: "refresh" },
+    config.refreshToken.secret,
+    { expiresIn: config.refreshToken.expiresIn }
   );
 }
 
 function sanitizeUser(user) {
   const plain = user.toObject ? user.toObject() : user;
-  const { password, ...rest } = plain;
+  const { password, refreshTokenHash, refreshTokenExpiresAt, ...rest } = plain;
   return rest;
+}
+
+function hashToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function buildAuthPayload(user, { accessToken, refreshToken }) {
+  return {
+    user: sanitizeUser(user),
+    token: accessToken,
+    accessToken,
+    refreshToken,
+    tokenType: "Bearer",
+    accessTokenExpiresIn: config.accessToken.expiresIn,
+  };
+}
+
+async function issueTokensForUser(user) {
+  const refreshToken = generateRefreshToken(user);
+  const decodedRefresh = jwt.verify(refreshToken, config.refreshToken.secret);
+  const accessToken = generateAccessToken(user);
+
+  user.refreshTokenHash = hashToken(refreshToken);
+  user.refreshTokenExpiresAt = new Date(decodedRefresh.exp * 1000);
+  await user.save();
+
+  return buildAuthPayload(user, { accessToken, refreshToken });
+}
+
+async function revokeRefreshToken(user) {
+  user.refreshTokenHash = null;
+  user.refreshTokenExpiresAt = null;
+  await user.save();
 }
 
 exports.getAll = async () => {
@@ -69,12 +111,7 @@ exports.register = async ({ email, password }) => {
     password: hashed,
   });
 
-  const token = generateToken(user);
-
-  return {
-    user: sanitizeUser(user),
-    token,
-  };
+  return await issueTokensForUser(user);
 };
 
 exports.login = async ({ email, password }) => {
@@ -86,12 +123,7 @@ exports.login = async ({ email, password }) => {
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) throw new Error("Invalid email or password");
 
-  const token = generateToken(user);
-
-  return {
-    user: sanitizeUser(user),
-    token,
-  };
+  return await issueTokensForUser(user);
 };
 
 exports.update = async (id, currentUser, body) => {
@@ -190,4 +222,52 @@ exports.updateUserAddress = async (userId, payload) => {
   await user.save();
 
   return user;
+};
+
+exports.refreshToken = async ({ refreshToken }) => {
+  if (!refreshToken) {
+    throw createError("Refresh token is required", 400);
+  }
+
+  let decoded;
+  try {
+    decoded = jwt.verify(refreshToken, config.refreshToken.secret);
+  } catch (error) {
+    throw createError("Invalid or expired refresh token", 401);
+  }
+
+  if (decoded.tokenType !== "refresh") {
+    throw createError("Invalid token type", 401);
+  }
+
+  const user = await User.findById(decoded.id).select(
+    "+refreshTokenHash +refreshTokenExpiresAt"
+  );
+
+  if (!user || !user.refreshTokenHash || !user.refreshTokenExpiresAt) {
+    throw createError("Invalid or expired refresh token", 401);
+  }
+
+  if (user.refreshTokenExpiresAt.getTime() < Date.now()) {
+    await revokeRefreshToken(user);
+    throw createError("Refresh token expired. Please login again.", 401);
+  }
+
+  const incomingHash = hashToken(refreshToken);
+  if (incomingHash !== user.refreshTokenHash) {
+    await revokeRefreshToken(user);
+    throw createError("Invalid or expired refresh token", 401);
+  }
+
+  return await issueTokensForUser(user);
+};
+
+exports.logout = async (userId) => {
+  const user = await User.findById(userId).select(
+    "+refreshTokenHash +refreshTokenExpiresAt"
+  );
+
+  if (!user) return;
+
+  await revokeRefreshToken(user);
 };

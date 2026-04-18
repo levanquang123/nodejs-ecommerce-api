@@ -7,5 +7,7 @@ const categorySchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+categorySchema.index({ name: 1 }, { unique: true });
+
 const Category = mongoose.model("Category", categorySchema);
 module.exports = Category;

@@ -16,7 +16,10 @@ const schema = Joi.object({
     .default("development"),
   PORT: Joi.number().port().default(3000),
   MONGO_URL: Joi.string().required(),
-  JWT_SECRET: Joi.string().required(),
+  ACCESS_TOKEN_SECRET: Joi.string().allow("", null),
+  REFRESH_TOKEN_SECRET: Joi.string().allow("", null),
+  ACCESS_TOKEN_EXPIRES_IN: Joi.string().default("2m"),
+  REFRESH_TOKEN_EXPIRES_IN: Joi.string().default("15m"),
   CORS_ORIGINS: Joi.string().allow("", null),
   RATE_LIMIT_WINDOW_MS: Joi.number().integer().positive().default(15 * 60 * 1000),
   RATE_LIMIT_MAX: Joi.number().integer().positive(),
@@ -49,6 +52,10 @@ if (error) {
 
 const isProduction = env.NODE_ENV === "production";
 const isTest = env.NODE_ENV === "test";
+const accessTokenSecret = env.ACCESS_TOKEN_SECRET;
+const refreshTokenSecret = env.REFRESH_TOKEN_SECRET || accessTokenSecret;
+const accessTokenExpiresIn = env.ACCESS_TOKEN_EXPIRES_IN;
+const refreshTokenExpiresIn = env.REFRESH_TOKEN_EXPIRES_IN;
 const productionOnlyEnv = [
   "STRIPE_SKRT_KET_TST",
   "STRIPE_PBLK_KET_TST",
@@ -61,18 +68,22 @@ const productionOnlyEnv = [
 
 const missingProductionEnv = productionOnlyEnv.filter((key) => !env[key]);
 
+if (!accessTokenSecret) {
+  throw new Error("ACCESS_TOKEN_SECRET is required.");
+}
+
 if (isProduction && missingProductionEnv.length) {
   throw new Error(
     `Missing production environment variables: ${missingProductionEnv.join(", ")}`
   );
 }
 
-if (isProduction && env.JWT_SECRET.length < 32) {
-  throw new Error("JWT_SECRET must be at least 32 characters in production.");
+if (isProduction && accessTokenSecret.length < 32) {
+  throw new Error("ACCESS_TOKEN_SECRET must be at least 32 characters in production.");
 }
 
-if (!isProduction && !isTest && env.JWT_SECRET.length < 32) {
-  console.warn("JWT_SECRET is short. Use at least 32 characters in production.");
+if (!isProduction && !isTest && accessTokenSecret.length < 32) {
+  console.warn("ACCESS_TOKEN_SECRET is short. Use at least 32 characters in production.");
 }
 
 if (!isProduction && !isTest && missingProductionEnv.length) {
@@ -97,7 +108,14 @@ module.exports = {
   isTest,
   port: env.PORT,
   mongoUrl: env.MONGO_URL,
-  jwtSecret: env.JWT_SECRET,
+  accessToken: {
+    secret: accessTokenSecret,
+    expiresIn: accessTokenExpiresIn,
+  },
+  refreshToken: {
+    secret: refreshTokenSecret,
+    expiresIn: refreshTokenExpiresIn,
+  },
   corsOrigins: parseCorsOrigins(env.CORS_ORIGINS),
   rateLimit: {
     windowMs: env.RATE_LIMIT_WINDOW_MS,

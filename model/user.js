@@ -69,6 +69,16 @@ const userSchema = new mongoose.Schema(
       type: addressSchema,
       default: () => ({}),
     },
+    refreshTokenHash: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    refreshTokenExpiresAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
   },
   { timestamps: true }
 );

@@ -75,6 +75,25 @@ exports.login = asyncHandler(async (req, res) => {
   });
 });
 
+exports.refreshToken = asyncHandler(async (req, res) => {
+  const data = await userService.refreshToken(req.body);
+
+  res.json({
+    success: true,
+    message: "Token refreshed successfully.",
+    data,
+  });
+});
+
+exports.logout = asyncHandler(async (req, res) => {
+  await userService.logout(req.user.id);
+
+  res.json({
+    success: true,
+    message: "Logout successfully.",
+  });
+});
+
 exports.update = asyncHandler(async (req, res) => {
   const data = await userService.update(req.params.id, req.user, req.body);
 

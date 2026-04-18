@@ -46,6 +46,15 @@ mongoose
 app.use(helmet());
 app.use(compression());
 app.use(morgan(config.isProduction ? "combined" : "dev"));
+app.use((req, res, next) => {
+  Sentry.setUser(null);
+  Sentry.setTag("endpoint", req.path);
+  Sentry.setContext("request", {
+    method: req.method,
+    url: req.originalUrl,
+  });
+  next();
+});
 
 app.get("/health", (req, res) => {
   res.status(200).json({
@@ -87,6 +96,7 @@ app.use(
 app.use(apiLimiter);
 app.use("/users/login", authLimiter);
 app.use("/users/register", authLimiter);
+app.use("/users/refresh-token", authLimiter);
 app.use("/payment/stripe", paymentLimiter);
 app.use(express.json({ limit: config.isProduction ? "1mb" : "10mb" }));
 app.use(
@@ -127,10 +137,11 @@ app.get("/", (req, res) => {
   });
 });
 
-app.get("/debug-sentry", (req, res) => {
-  throw new Error("Sentry test error");
-});
-
+if (!config.isProduction) {
+  app.get("/debug-sentry", (req, res) => {
+    throw new Error("Sentry test error");
+  });
+}
 
 app.use((req, res) => {
   res.status(404).json({
@@ -144,6 +155,18 @@ Sentry.setupExpressErrorHandler(app);
 app.use((err, req, res, next) => {
   const statusCode = err.status || 500;
   const isOperational = statusCode < 500;
+
+  if (statusCode >= 500 && !res.sentry) {
+    Sentry.withScope((scope) => {
+      scope.setTag("status_code", String(statusCode));
+      scope.setExtra("method", req.method);
+      scope.setExtra("url", req.originalUrl);
+      if (req.user?.id) {
+        scope.setUser({ id: req.user.id, role: req.user.role });
+      }
+      Sentry.captureException(err);
+    });
+  }
 
   logger.error({
     method: req.method,

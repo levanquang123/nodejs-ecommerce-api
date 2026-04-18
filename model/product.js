@@ -137,6 +137,14 @@ const productSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
+productSchema.index({ name: 1 }, { unique: true });
+productSchema.index({ proCategoryId: 1 });
+productSchema.index({ proSubCategoryId: 1 });
+productSchema.index({ proBrandId: 1 });
+productSchema.index({ proVariantTypeId: 1 });
+productSchema.index({ "variants.attributes.variantTypeId": 1 });
+productSchema.index({ "variants.attributes.variantId": 1 });
+
 const Product = mongoose.model('Product', productSchema);
 
 module.exports = Product;
