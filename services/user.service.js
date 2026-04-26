@@ -252,7 +252,7 @@ exports.updateUserAddress = async (userId, payload) => {
   return user;
 };
 
-exports.refreshToken = async ({ refreshToken }) => {
+exports.refreshToken = async ({ refreshToken } = {}) => {
   if (!refreshToken) {
     throw createError("Refresh token is required", 400);
   }
