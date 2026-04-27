@@ -27,6 +27,7 @@ exports.getById = asyncHandler(async (req, res) => {
   if (!data) {
     return res.status(404).json({
       success: false,
+      requestId: req.requestId,
       message: "Order not found.",
     });
   }
@@ -39,11 +40,22 @@ exports.getById = asyncHandler(async (req, res) => {
 });
 
 exports.create = asyncHandler(async (req, res) => {
-  await orderService.create(req.body);
+  if (req.body.paymentMethod === "prepaid") {
+    return res.status(400).json({
+      success: false,
+      requestId: req.requestId,
+      message: "Use /payment/stripe to create prepaid orders.",
+    });
+  }
 
-  res.json({
+  const data = await orderService.create(req.user.id, req.body, {
+    deferStock: false,
+  });
+
+  res.status(201).json({
     success: true,
     message: "Order created successfully and stock updated.",
+    data,
   });
 });
 

@@ -17,6 +17,7 @@ exports.getById = asyncHandler(async (req, res) => {
   if (!data) {
     return res.status(404).json({
       success: false,
+      requestId: req.requestId,
       message: "Variant not found.",
     });
   }

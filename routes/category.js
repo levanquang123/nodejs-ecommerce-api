@@ -3,12 +3,6 @@ const router = express.Router();
 
 const auth = require("../middleware/auth");
 const admin = require("../middleware/admin");
-const validate = require("../middleware/validate");
-
-const {
-  createCategorySchema,
-  updateCategorySchema,
-} = require("../validators/category.validator");
 
 const categoryController = require("../controllers/category.controller");
 
@@ -20,7 +14,6 @@ router.post(
   "/",
   auth,
   admin,
-  validate(createCategorySchema),
   categoryController.create
 );
 
@@ -28,7 +21,6 @@ router.put(
   "/:id",
   auth,
   admin,
-  validate(updateCategorySchema),
   categoryController.update
 );
 

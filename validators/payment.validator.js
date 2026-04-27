@@ -1,21 +1,25 @@
 const Joi = require("joi");
 
 exports.createPaymentSchema = Joi.object({
-  email: Joi.string().required(),
-
-  name: Joi.string().required(),
-
-  address: Joi.object({
-    line1: Joi.string().required(),
+  shippingAddress: Joi.object({
+    phone: Joi.string().required(),
+    street: Joi.string().required(),
     city: Joi.string().required(),
     state: Joi.string().required(),
-    postal_code: Joi.string().required(),
+    postalCode: Joi.string().required(),
     country: Joi.string().required(),
   }).required(),
 
-  amount: Joi.number().required().min(100),
+  items: Joi.array()
+    .items(
+      Joi.object({
+        productID: Joi.string().hex().length(24).required(),
+        variantId: Joi.string().hex().length(24).allow(null, ""),
+        quantity: Joi.number().integer().min(1).required(),
+      })
+    )
+    .min(1)
+    .required(),
 
-  currency: Joi.string().valid("usd", "vnd").required(),
-
-  description: Joi.string().allow("", null),
+  couponCode: Joi.string().hex().length(24).allow(null, ""),
 });

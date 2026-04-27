@@ -8,9 +8,12 @@ function createLimiter({ max, message }) {
     standardHeaders: "draft-8",
     legacyHeaders: false,
     skip: () => config.isTest,
-    message: {
-      success: false,
-      message,
+    handler: (req, res) => {
+      res.status(429).json({
+        success: false,
+        requestId: req.requestId,
+        message,
+      });
     },
   });
 }

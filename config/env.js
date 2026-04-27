@@ -28,6 +28,7 @@ const schema = Joi.object({
   PAYMENT_RATE_LIMIT_MAX: Joi.number().integer().positive(),
   STRIPE_SKRT_KET_TST: Joi.string().allow("", null),
   STRIPE_PBLK_KET_TST: Joi.string().allow("", null),
+  STRIPE_WEBHOOK_SECRET: Joi.string().allow("", null),
   CLOUDINARY_CLOUD_NAME: Joi.string().allow("", null),
   CLOUDINARY_API_KEY: Joi.string().allow("", null),
   CLOUDINARY_API_SECRET: Joi.string().allow("", null),
@@ -35,7 +36,8 @@ const schema = Joi.object({
   ONE_SIGNAL_REST_API_KEY: Joi.string().allow("", null),
   SENTRY_DSN: Joi.string().uri().allow("", null),
   SENTRY_RELEASE: Joi.string().allow("", null),
-  SENTRY_TRACES_SAMPLE_RATE: Joi.number().min(0).max(1).default(0),
+  SENTRY_TRACES_SAMPLE_RATE: Joi.number().min(0).max(1).allow(null),
+  SENTRY_PROFILES_SAMPLE_RATE: Joi.number().min(0).max(1).default(0),
   SENTRY_SEND_DEFAULT_PII: Joi.boolean().truthy("true").falsy("false").default(false),
 }).unknown(true);
 
@@ -63,6 +65,7 @@ const refreshTokenMaxAgeMs = parseDurationMs(refreshTokenMaxAge, "REFRESH_TOKEN_
 const productionOnlyEnv = [
   "STRIPE_SKRT_KET_TST",
   "STRIPE_PBLK_KET_TST",
+  "STRIPE_WEBHOOK_SECRET",
   "CLOUDINARY_CLOUD_NAME",
   "CLOUDINARY_API_KEY",
   "CLOUDINARY_API_SECRET",
@@ -153,7 +156,15 @@ module.exports = {
   sentry: {
     dsn: env.SENTRY_DSN,
     release: env.SENTRY_RELEASE || `store_api@${require("../package.json").version}`,
-    tracesSampleRate: env.NODE_ENV === "production" ? 0.1 : 1.0,
+    tracesSampleRate:
+      env.SENTRY_TRACES_SAMPLE_RATE ??
+      (env.NODE_ENV === "production" ? 0.1 : 1.0),
+    profilesSampleRate: env.SENTRY_PROFILES_SAMPLE_RATE,
     sendDefaultPii: env.SENTRY_SEND_DEFAULT_PII,
+  },
+  stripe: {
+    secretKey: env.STRIPE_SKRT_KET_TST,
+    publishableKey: env.STRIPE_PBLK_KET_TST,
+    webhookSecret: env.STRIPE_WEBHOOK_SECRET,
   },
 };

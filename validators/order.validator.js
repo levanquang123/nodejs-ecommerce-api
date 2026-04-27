@@ -9,12 +9,6 @@ const objectId = (value, helpers) => {
 };
 
 exports.createOrderSchema = Joi.object({
-  userID: Joi.string().required().custom(objectId),
-
-  orderStatus: Joi.string()
-    .valid("pending", "processing", "shipped", "delivered", "cancelled")
-    .optional(),
-
   items: Joi.array()
     .items(
       Joi.object({
@@ -44,8 +38,6 @@ exports.createOrderSchema = Joi.object({
     .min(1)
     .required(),
 
-  totalPrice: Joi.number().required().min(0),
-
   shippingAddress: Joi.object({
     phone: Joi.string().required(),
     street: Joi.string().required(),
@@ -57,20 +49,12 @@ exports.createOrderSchema = Joi.object({
 
   paymentMethod: Joi.string().valid("cod", "prepaid").required(),
 
-  couponCode: Joi.string().allow(null, ""),
-
-  orderTotal: Joi.object({
-    subtotal: Joi.number().required(),
-    discount: Joi.number().min(0).default(0),
-    total: Joi.number().required(),
-  }).required(),
-
-  trackingUrl: Joi.string().uri().allow("", null),
+  couponCode: Joi.string().custom(objectId).allow(null, ""),
 });
 
 exports.updateOrderSchema = Joi.object({
   orderStatus: Joi.string()
-    .valid("pending", "processing", "shipped", "delivered", "cancelled")
+    .valid("pending_payment", "pending", "processing", "shipped", "delivered", "cancelled")
     .required(),
 
   trackingUrl: Joi.string().uri().allow("", null),

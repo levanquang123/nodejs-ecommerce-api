@@ -7,13 +7,16 @@ describe("User Management System (User API)", () => {
   
   // Clean up test data before running the test suite
   beforeAll(async () => {
-    await User.deleteMany({ name: "testuser_quang" });
-    await User.deleteMany({ name: "quang_short" });
+    await User.deleteMany({
+      email: { $in: ["testuser_quang@example.com", "quang_short@example.com"] },
+    });
   });
 
   // Close DB connection and clean up after all tests are finished
   afterAll(async () => {
-    await User.deleteMany({ name: "testuser_quang" });
+    await User.deleteMany({
+      email: { $in: ["testuser_quang@example.com", "quang_short@example.com"] },
+    });
     await mongoose.connection.close();
   });
 
@@ -23,21 +26,21 @@ describe("User Management System (User API)", () => {
       const res = await request(app)
         .post("/users/register")
         .send({
-          name: "testuser_quang",
+          email: "testuser_quang@example.com",
           password: "password123"
         });
 
       expect(res.statusCode).toEqual(201);
       expect(res.body.success).toBe(true);
       expect(res.body.data).toHaveProperty("token");
-      expect(res.body.data.user.name).toBe("testuser_quang");
+      expect(res.body.data.user.email).toBe("testuser_quang@example.com");
     });
 
     it("should fail if password is too short (less than 6 characters)", async () => {
       const res = await request(app)
         .post("/users/register")
         .send({
-          name: "quang_short",
+          email: "quang_short@example.com",
           password: "123"
         });
 
@@ -52,7 +55,7 @@ describe("User Management System (User API)", () => {
       const res = await request(app)
         .post("/users/login")
         .send({
-          name: "testuser_quang",
+          email: "testuser_quang@example.com",
           password: "password123"
         });
 
@@ -65,7 +68,7 @@ describe("User Management System (User API)", () => {
       const res = await request(app)
         .post("/users/login")
         .send({
-          name: "testuser_quang",
+          email: "testuser_quang@example.com",
           password: "wrongpassword"
         });
 

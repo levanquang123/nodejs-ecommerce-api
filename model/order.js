@@ -12,7 +12,14 @@ const orderSchema = new mongoose.Schema({
   },
   orderStatus: {
     type: String,
-    enum: ["pending", "processing", "shipped", "delivered", "cancelled"],
+    enum: [
+      "pending_payment",
+      "pending",
+      "processing",
+      "shipped",
+      "delivered",
+      "cancelled",
+    ],
     default: "pending",
   },
   items: [
@@ -96,6 +103,18 @@ const orderSchema = new mongoose.Schema({
     type: String,
     enum: ["cod", "prepaid"],
   },
+  paymentStatus: {
+    type: String,
+    enum: ["unpaid", "requires_payment", "paid", "failed", "cancelled"],
+    default: "unpaid",
+  },
+  paymentIntentId: {
+    type: String,
+    trim: true,
+  },
+  stockReservedAt: {
+    type: Date,
+  },
 
   couponCode: {
     type: mongoose.Schema.Types.ObjectId,
@@ -113,6 +132,10 @@ const orderSchema = new mongoose.Schema({
 
 orderSchema.index({ userID: 1, _id: -1 });
 orderSchema.index({ userID: 1, orderStatus: 1 });
+orderSchema.index(
+  { paymentIntentId: 1 },
+  { unique: true, sparse: true }
+);
 
 const Order = mongoose.model("Order", orderSchema);
 

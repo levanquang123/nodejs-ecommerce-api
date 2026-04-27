@@ -13,9 +13,9 @@ const {
 
 const couponController = require("../controllers/coupon.controller");
 
-router.get("/", couponController.getAll);
+router.get("/", auth, admin, couponController.getAll);
 
-router.get("/:id", couponController.getById);
+router.get("/:id", auth, admin, couponController.getById);
 
 router.post(
   "/",

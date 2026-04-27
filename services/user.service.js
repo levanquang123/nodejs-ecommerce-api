@@ -116,7 +116,15 @@ exports.getCurrentUserProfile = async (userId) => {
   return await User.findById(userId).select("-password");
 };
 
-exports.getById = async (id) => {
+function isAdmin(user) {
+  return user && (user.role === "admin" || user.role === "superadmin");
+}
+
+exports.getById = async (id, currentUser) => {
+  if (!isAdmin(currentUser) && currentUser?.id !== id) {
+    throw createError("You can only access your own account.", 403);
+  }
+
   return await User.findById(id).select("-password");
 };
 
@@ -130,7 +138,7 @@ exports.register = async ({ email, password }) => {
   }
 
   const exist = await User.findOne({ email });
-  if (exist) throw new Error("Email already exists");
+  if (exist) throw createError("Email already exists", 409);
 
   const hashed = await bcrypt.hash(password, 10);
 
@@ -146,10 +154,10 @@ exports.login = async ({ email, password }) => {
   email = email.trim().toLowerCase();
 
   const user = await User.findOne({ email });
-  if (!user) throw new Error("Invalid email or password");
+  if (!user) throw createError("Invalid email or password", 401);
 
   const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) throw new Error("Invalid email or password");
+  if (!isMatch) throw createError("Invalid email or password", 401);
 
   return await issueTokensForUser(user, { startNewSession: true });
 };

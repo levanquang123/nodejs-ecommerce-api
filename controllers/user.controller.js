@@ -17,6 +17,7 @@ exports.getMe = asyncHandler(async (req, res) => {
   if (!data) {
     return res.status(404).json({
       success: false,
+      requestId: req.requestId,
       message: "User not found",
     });
   }
@@ -39,11 +40,12 @@ exports.updateMyAddress = asyncHandler(async (req, res) => {
 });
 
 exports.getById = asyncHandler(async (req, res) => {
-  const data = await userService.getById(req.params.id);
+  const data = await userService.getById(req.params.id, req.user);
 
   if (!data) {
     return res.status(404).json({
       success: false,
+      requestId: req.requestId,
       message: "User not found",
     });
   }
@@ -120,6 +122,7 @@ exports.toggleFavorite = asyncHandler(async (req, res) => {
   if (!productId) {
     return res.status(400).json({
       success: false,
+      requestId: req.requestId,
       message: "Product ID is required",
     });
   }

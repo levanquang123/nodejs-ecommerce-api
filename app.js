@@ -9,11 +9,13 @@ const morgan = require("morgan");
 const winston = require("winston");
 const Sentry = require("@sentry/node");
 const config = require("./config/env");
+const requestContext = require("./middleware/requestContext");
 const {
   apiLimiter,
   authLimiter,
   paymentLimiter,
 } = require("./middleware/rateLimit");
+const paymentController = require("./controllers/payment.controller");
 
 const app = express();
 
@@ -46,13 +48,9 @@ mongoose
 app.use(helmet());
 app.use(compression());
 app.use(morgan(config.isProduction ? "combined" : "dev"));
+app.use(requestContext);
 app.use((req, res, next) => {
   Sentry.setUser(null);
-  Sentry.setTag("endpoint", req.path);
-  Sentry.setContext("request", {
-    method: req.method,
-    url: req.originalUrl,
-  });
   next();
 });
 
@@ -88,7 +86,16 @@ app.use(
       }
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "Accept"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Accept",
+      "x-request-id",
+      "x-client-type",
+      "sentry-trace",
+      "baggage",
+    ],
+    exposedHeaders: ["x-request-id", "sentry-trace", "baggage"],
     credentials: true,
   })
 );
@@ -98,6 +105,19 @@ app.use("/users/login", authLimiter);
 app.use("/users/register", authLimiter);
 app.use("/users/refresh-token", authLimiter);
 app.use("/payment/stripe", paymentLimiter);
+app.post(
+  "/payment/webhook",
+  express.raw({ type: "application/json" }),
+  paymentController.handleStripeWebhook
+);
+app.post(
+  "/",
+  express.raw({ type: "application/json" }),
+  (req, res, next) => {
+    if (!req.headers["stripe-signature"]) return next();
+    return paymentController.handleStripeWebhook(req, res, next);
+  }
+);
 app.use(express.json({ limit: config.isProduction ? "1mb" : "10mb" }));
 app.use(
   express.urlencoded({
@@ -146,6 +166,7 @@ if (!config.isProduction) {
 app.use((req, res) => {
   res.status(404).json({
     success: false,
+    requestId: req.requestId,
     message: "Route not found",
   });
 });
@@ -159,8 +180,10 @@ app.use((err, req, res, next) => {
   if (statusCode >= 500 && !res.sentry) {
     Sentry.withScope((scope) => {
       scope.setTag("status_code", String(statusCode));
+      scope.setTag("request_id", req.requestId || "unknown");
       scope.setExtra("method", req.method);
       scope.setExtra("url", req.originalUrl);
+      scope.setExtra("requestId", req.requestId);
       if (req.user?.id) {
         scope.setUser({ id: req.user.id, role: req.user.role });
       }
@@ -168,16 +191,21 @@ app.use((err, req, res, next) => {
     });
   }
 
-  logger.error({
-    method: req.method,
-    url: req.originalUrl,
-    statusCode,
-    message: err.message,
-    stack: err.stack,
-  });
+  if (!(config.isTest && isOperational)) {
+    logger.error({
+      method: req.method,
+      url: req.originalUrl,
+      requestId: req.requestId,
+      userId: req.user?.id,
+      statusCode,
+      message: err.message,
+      stack: err.stack,
+    });
+  }
 
   res.status(statusCode).json({
     success: false,
+    requestId: req.requestId,
     errorId: res.sentry,
     message:
       config.isProduction && !isOperational

@@ -4,6 +4,7 @@ const { CloudinaryStorage } = require("multer-storage-cloudinary");
 
 // 1. Cấu hình giới hạn file (5MB)
 const FILE_SIZE_LIMIT = 1024 * 1024 * 5;
+const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png"]);
 
 // 2. Kết nối Cloudinary (Đảm bảo đã có biến môi trường trên Render)
 cloudinary.config({
@@ -35,16 +36,34 @@ function createCloudinaryStorage(folderName) {
 const uploadProduct = multer({
   storage: createCloudinaryStorage("products"),
   limits: { fileSize: FILE_SIZE_LIMIT },
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      return cb(new Error("Only JPG and PNG images are allowed."));
+    }
+    return cb(null, true);
+  },
 });
 
 const uploadCategory = multer({
   storage: createCloudinaryStorage("categories"),
   limits: { fileSize: FILE_SIZE_LIMIT },
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      return cb(new Error("Only JPG and PNG images are allowed."));
+    }
+    return cb(null, true);
+  },
 });
 
 const uploadPosters = multer({
   storage: createCloudinaryStorage("posters"),
   limits: { fileSize: FILE_SIZE_LIMIT },
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      return cb(new Error("Only JPG and PNG images are allowed."));
+    }
+    return cb(null, true);
+  },
 });
 
 // 5. Xuất các module để sử dụng ở Routes
