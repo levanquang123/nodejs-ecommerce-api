@@ -11,6 +11,7 @@ const SubCategory = require("../model/subCategory");
 const Product = require("../model/product");
 const Coupon = require("../model/couponCode");
 const Order = require("../model/order");
+const orderService = require("../services/order.service");
 
 const stripe = stripeClient("sk_test_unused");
 
@@ -305,12 +306,13 @@ describe("Production-critical API behavior", () => {
       },
     };
 
-    const unpaidPrepaid = await Order.create({
-      ...baseOrder,
-      orderStatus: "pending_payment",
-      paymentStatus: "requires_payment",
-      paymentIntentId: `pi_${unique("unpaid")}`,
+    const unpaidPrepaid = await orderService.createPendingPayment(buyer.user._id, {
+      items: [{ productID: product._id.toString(), quantity: 1 }],
+      shippingAddress: baseOrder.shippingAddress,
     });
+
+    expect(unpaidPrepaid).toBeTruthy();
+    expect(unpaidPrepaid.orderTotal.total).toBe(120);
 
     const paidPrepaid = await Order.create({
       ...baseOrder,

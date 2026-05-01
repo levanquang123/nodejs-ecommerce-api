@@ -25,6 +25,12 @@ function canAccessUserResource(targetUserId, currentUser) {
   return isAdmin(currentUser) || currentUser?.id === targetUserId.toString();
 }
 
+async function findOrderById(id) {
+  return await Order.findById(id)
+    .populate(orderPopulate[0])
+    .populate(orderPopulate[1]);
+}
+
 function toAttributeSnapshot(attributes) {
   if (!Array.isArray(attributes)) return [];
 
@@ -306,9 +312,7 @@ exports.getByUserId = async (userId, currentUser) => {
 };
 
 exports.getById = async (id, currentUser) => {
-  const order = await Order.findById(id)
-    .populate(orderPopulate[0])
-    .populate(orderPopulate[1]);
+  const order = await findOrderById(id);
 
   if (!order) return null;
 
@@ -347,7 +351,7 @@ exports.create = async (userID, body, options = {}) => {
 
     await session.commitTransaction();
     session.endSession();
-    return await exports.getById(order._id, { id: userID });
+    return await findOrderById(order._id);
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
