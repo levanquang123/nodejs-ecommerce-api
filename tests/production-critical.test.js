@@ -11,6 +11,7 @@ const SubCategory = require("../model/subCategory");
 const Product = require("../model/product");
 const Coupon = require("../model/couponCode");
 const Order = require("../model/order");
+const PaymentSession = require("../model/paymentSession");
 const orderService = require("../services/order.service");
 
 const stripe = stripeClient("sk_test_unused");
@@ -76,6 +77,7 @@ async function cleanupTestData() {
 
   await Promise.all([
     Order.deleteMany({ userID: { $in: testUserIds } }),
+    PaymentSession.deleteMany({ userID: { $in: testUserIds } }),
     Product.deleteMany({ name: /^product_fixture_/ }),
     Coupon.deleteMany({ couponCode: /^coupon_fixture_/ }),
     SubCategory.deleteMany({ name: /^subcategory_fixture_/ }),
@@ -265,7 +267,7 @@ describe("Production-critical API behavior", () => {
     expect(res.body.message).toContain("/payment/stripe");
   });
 
-  it("hides unpaid prepaid orders from customer order history", async () => {
+  it("keeps unpaid prepaid sessions out of customer order history", async () => {
     const buyer = await registerAndLogin(
       `history-buyer-${unique("id")}@critical-test.example.com`
     );
@@ -313,6 +315,7 @@ describe("Production-critical API behavior", () => {
 
     expect(unpaidPrepaid).toBeTruthy();
     expect(unpaidPrepaid.orderTotal.total).toBe(120);
+    expect(await Order.findById(unpaidPrepaid._id)).toBeNull();
 
     const paidPrepaid = await Order.create({
       ...baseOrder,
@@ -352,7 +355,58 @@ describe("Production-critical API behavior", () => {
       .get(`/orders/orderByUserId/${buyer.user._id}`)
       .set("Authorization", `Bearer ${admin.token}`);
     const adminOrderIds = adminHistory.body.data.map((order) => order._id);
-    expect(adminOrderIds).toContain(unpaidPrepaid._id.toString());
+    expect(adminOrderIds).not.toContain(unpaidPrepaid._id.toString());
+  });
+
+  it("creates prepaid orders only after Stripe payment succeeds", async () => {
+    const buyer = await registerAndLogin(
+      `stripe-session-buyer-${unique("id")}@critical-test.example.com`
+    );
+    const { product } = await createProductFixture({ price: 150, quantity: 3 });
+    const paymentIntentId = `pi_${unique("session")}`;
+
+    const paymentSession = await orderService.createPendingPayment(
+      buyer.user._id,
+      {
+        items: [{ productID: product._id.toString(), quantity: 2 }],
+        shippingAddress: {
+          phone: "1234567890",
+          street: "Main Street",
+          city: "New York",
+          state: "NY",
+          postalCode: "10001",
+          country: "US",
+        },
+      }
+    );
+
+    await orderService.attachPaymentIntent(paymentSession._id, paymentIntentId);
+
+    expect(await Order.findOne({ paymentIntentId })).toBeNull();
+
+    await orderService.markPaymentSucceeded(paymentIntentId);
+
+    const createdOrder = await Order.findOne({ paymentIntentId });
+    expect(createdOrder).toBeTruthy();
+    expect(createdOrder.paymentStatus).toBe("paid");
+    expect(createdOrder.orderStatus).toBe("pending");
+    expect(createdOrder.orderTotal.total).toBe(300);
+
+    const completedSession = await PaymentSession.findById(paymentSession._id);
+    expect(completedSession.paymentStatus).toBe("paid");
+    expect(completedSession.completedOrder.toString()).toBe(
+      createdOrder._id.toString()
+    );
+
+    const productAfterPayment = await Product.findById(product._id);
+    expect(productAfterPayment.quantity).toBe(1);
+
+    await orderService.markPaymentSucceeded(paymentIntentId);
+
+    const orderCount = await Order.countDocuments({ paymentIntentId });
+    const productAfterRetry = await Product.findById(product._id);
+    expect(orderCount).toBe(1);
+    expect(productAfterRetry.quantity).toBe(1);
   });
 
   it("rejects Stripe webhooks with invalid signatures", async () => {

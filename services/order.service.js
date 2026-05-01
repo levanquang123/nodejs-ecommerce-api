@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const Order = require("../model/order");
+const PaymentSession = require("../model/paymentSession");
 const Product = require("../model/product");
 const Coupon = require("../model/couponCode");
 const orderPopulate = [
@@ -337,8 +338,10 @@ exports.create = async (userID, body, options = {}) => {
 
     const order = new Order({
       ...snapshot,
-      orderStatus: deferStock ? "pending_payment" : "pending",
-      paymentStatus: deferStock ? "requires_payment" : "unpaid",
+      orderStatus:
+        options.orderStatus || (deferStock ? "pending_payment" : "pending"),
+      paymentStatus:
+        options.paymentStatus || (deferStock ? "requires_payment" : "unpaid"),
       paymentIntentId: options.paymentIntentId,
       stockReservedAt: deferStock ? undefined : new Date(),
     });
@@ -361,31 +364,52 @@ exports.create = async (userID, body, options = {}) => {
 };
 
 exports.createPendingPayment = async (userID, body) => {
-  return await exports.create(userID, { ...body, paymentMethod: "prepaid" }, {
-    deferStock: true,
-  });
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const snapshot = await buildOrderSnapshot({
+      userID,
+      body: { ...body, paymentMethod: "prepaid" },
+      session,
+    });
+
+    const paymentSession = new PaymentSession({
+      ...snapshot,
+      paymentStatus: "requires_payment",
+    });
+
+    await paymentSession.save({ session });
+    await session.commitTransaction();
+    session.endSession();
+    return paymentSession;
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    throw error;
+  }
 };
 
-exports.attachPaymentIntent = async (orderId, paymentIntentId) => {
-  const updated = await Order.findByIdAndUpdate(
-    orderId,
+exports.attachPaymentIntent = async (paymentSessionId, paymentIntentId) => {
+  const updated = await PaymentSession.findByIdAndUpdate(
+    paymentSessionId,
     { paymentIntentId },
     { new: true }
   );
 
   if (!updated) {
-    throw createError("Order not found.", 404);
+    throw createError("Payment session not found.", 404);
   }
 
   return updated;
 };
 
-exports.cancelPendingPaymentOrder = async (orderId) => {
-  if (!orderId) return null;
+exports.cancelPendingPaymentOrder = async (paymentSessionId) => {
+  if (!paymentSessionId) return null;
 
-  return await Order.findOneAndUpdate(
+  return await PaymentSession.findOneAndUpdate(
     {
-      _id: orderId,
+      _id: paymentSessionId,
       paymentStatus: { $ne: "paid" },
     },
     {
@@ -401,6 +425,56 @@ exports.markPaymentSucceeded = async (paymentIntentId) => {
   session.startTransaction();
 
   try {
+    const existingPaidOrder = await Order.findOne({ paymentIntentId }).session(
+      session
+    );
+    if (existingPaidOrder?.paymentStatus === "paid") {
+      await session.commitTransaction();
+      session.endSession();
+      return existingPaidOrder;
+    }
+
+    const paymentSession = await PaymentSession.findOne({
+      paymentIntentId,
+    }).session(session);
+
+    if (paymentSession) {
+      if (paymentSession.paymentStatus === "paid" && paymentSession.completedOrder) {
+        const completedOrder = await Order.findById(
+          paymentSession.completedOrder
+        ).session(session);
+        await session.commitTransaction();
+        session.endSession();
+        return completedOrder;
+      }
+
+      await decrementStockForItems(paymentSession.items, session);
+
+      const order = new Order({
+        userID: paymentSession.userID,
+        items: paymentSession.items,
+        totalPrice: paymentSession.totalPrice,
+        shippingAddress: paymentSession.shippingAddress,
+        paymentMethod: "prepaid",
+        paymentStatus: "paid",
+        paymentIntentId,
+        orderStatus: "pending",
+        stockReservedAt: new Date(),
+        couponCode: paymentSession.couponCode,
+        orderTotal: paymentSession.orderTotal,
+      });
+
+      await order.save({ session });
+
+      paymentSession.paymentStatus = "paid";
+      paymentSession.completedOrder = order._id;
+      await paymentSession.save({ session });
+
+      await session.commitTransaction();
+      session.endSession();
+      return order;
+    }
+
     const order = await Order.findOne({ paymentIntentId }).session(session);
     if (!order) {
       throw createError("Order not found for payment intent.", 404);
@@ -430,6 +504,16 @@ exports.markPaymentSucceeded = async (paymentIntentId) => {
 };
 
 exports.markPaymentFailed = async (paymentIntentId, status = "failed") => {
+  const paymentSession = await PaymentSession.findOneAndUpdate(
+    { paymentIntentId, paymentStatus: { $ne: "paid" } },
+    {
+      paymentStatus: status,
+    },
+    { new: true }
+  );
+
+  if (paymentSession) return paymentSession;
+
   return await Order.findOneAndUpdate(
     { paymentIntentId, paymentStatus: { $ne: "paid" } },
     {
