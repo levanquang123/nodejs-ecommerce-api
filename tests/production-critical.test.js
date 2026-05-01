@@ -264,6 +264,95 @@ describe("Production-critical API behavior", () => {
     expect(res.body.message).toContain("/payment/stripe");
   });
 
+  it("hides unpaid prepaid orders from customer order history", async () => {
+    const buyer = await registerAndLogin(
+      `history-buyer-${unique("id")}@critical-test.example.com`
+    );
+    const admin = await createAdmin(
+      `history-admin-${unique("id")}@critical-test.example.com`
+    );
+    const { product } = await createProductFixture({ price: 120, quantity: 6 });
+
+    const baseOrder = {
+      userID: buyer.user._id,
+      paymentMethod: "prepaid",
+      items: [
+        {
+          productID: product._id,
+          productName: product.name,
+          quantity: 1,
+          price: 120,
+          variant: "",
+          variantId: null,
+          sku: "",
+          attributes: [],
+          image: "",
+        },
+      ],
+      totalPrice: 120,
+      shippingAddress: {
+        phone: "1234567890",
+        street: "Main Street",
+        city: "New York",
+        state: "NY",
+        postalCode: "10001",
+        country: "US",
+      },
+      orderTotal: {
+        subtotal: 120,
+        discount: 0,
+        total: 120,
+      },
+    };
+
+    const unpaidPrepaid = await Order.create({
+      ...baseOrder,
+      orderStatus: "pending_payment",
+      paymentStatus: "requires_payment",
+      paymentIntentId: `pi_${unique("unpaid")}`,
+    });
+
+    const paidPrepaid = await Order.create({
+      ...baseOrder,
+      orderStatus: "pending",
+      paymentStatus: "paid",
+      paymentIntentId: `pi_${unique("paid")}`,
+    });
+
+    const codOrder = await Order.create({
+      ...baseOrder,
+      paymentMethod: "cod",
+      orderStatus: "pending",
+      paymentStatus: "unpaid",
+      paymentIntentId: undefined,
+    });
+
+    const customerHistory = await request(app)
+      .get(`/orders/orderByUserId/${buyer.user._id}`)
+      .set("Authorization", `Bearer ${buyer.token}`);
+
+    expect(customerHistory.statusCode).toBe(200);
+    const customerOrderIds = customerHistory.body.data.map((order) => order._id);
+    expect(customerOrderIds).not.toContain(unpaidPrepaid._id.toString());
+    expect(customerOrderIds).toEqual(
+      expect.arrayContaining([
+        paidPrepaid._id.toString(),
+        codOrder._id.toString(),
+      ])
+    );
+
+    const hiddenDetail = await request(app)
+      .get(`/orders/${unpaidPrepaid._id}`)
+      .set("Authorization", `Bearer ${buyer.token}`);
+    expect(hiddenDetail.statusCode).toBe(404);
+
+    const adminHistory = await request(app)
+      .get(`/orders/orderByUserId/${buyer.user._id}`)
+      .set("Authorization", `Bearer ${admin.token}`);
+    const adminOrderIds = adminHistory.body.data.map((order) => order._id);
+    expect(adminOrderIds).toContain(unpaidPrepaid._id.toString());
+  });
+
   it("rejects Stripe webhooks with invalid signatures", async () => {
     const payload = JSON.stringify({
       id: `evt_${unique("stripe")}`,

@@ -17,6 +17,10 @@ function isAdmin(user) {
   return user && (user.role === "admin" || user.role === "superadmin");
 }
 
+function isVisibleToCustomer(order) {
+  return order.paymentMethod !== "prepaid" || order.paymentStatus === "paid";
+}
+
 function canAccessUserResource(targetUserId, currentUser) {
   return isAdmin(currentUser) || currentUser?.id === targetUserId.toString();
 }
@@ -287,7 +291,15 @@ exports.getByUserId = async (userId, currentUser) => {
     throw createError("You can only access your own orders.", 403);
   }
 
-  return await Order.find({ userID: userId })
+  const filter = { userID: userId };
+  if (!isAdmin(currentUser)) {
+    filter.$or = [
+      { paymentMethod: { $ne: "prepaid" } },
+      { paymentStatus: "paid" },
+    ];
+  }
+
+  return await Order.find(filter)
     .populate(orderPopulate[0])
     .populate(orderPopulate[1])
     .sort({ _id: -1 });
@@ -302,6 +314,10 @@ exports.getById = async (id, currentUser) => {
 
   if (!canAccessUserResource(order.userID._id || order.userID, currentUser)) {
     throw createError("You can only access your own orders.", 403);
+  }
+
+  if (!isAdmin(currentUser) && !isVisibleToCustomer(order)) {
+    return null;
   }
 
   return order;
