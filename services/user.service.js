@@ -72,15 +72,22 @@ function getRefreshTokenExpiresInSeconds(sessionExpiresAt) {
 }
 
 async function issueTokensForUser(user, { startNewSession = false } = {}) {
+  if (
+    user.refreshTokenSessionExpiresAt &&
+    user.refreshTokenSessionExpiresAt.getTime() <= Date.now()
+  ) {
+    await revokeRefreshToken(user);
+    throw createError("Session expired. Please login again.", 401);
+  }
+
   if (startNewSession || !user.refreshTokenSessionExpiresAt) {
     user.refreshTokenSessionExpiresAt = new Date(
       Date.now() + config.refreshToken.maxAgeMs
     );
-  }
-
-  if (user.refreshTokenSessionExpiresAt.getTime() <= Date.now()) {
-    await revokeRefreshToken(user);
-    throw createError("Session expired. Please login again.", 401);
+  } else {
+    user.refreshTokenSessionExpiresAt = new Date(
+      Date.now() + config.refreshToken.maxAgeMs
+    );
   }
 
   const refreshTokenExpiresInSeconds = getRefreshTokenExpiresInSeconds(

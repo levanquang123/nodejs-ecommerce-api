@@ -75,6 +75,41 @@ describe("User Management System (User API)", () => {
       expect(res.statusCode).toBeGreaterThanOrEqual(400);
       expect(res.body.success).toBe(false);
     });
+
+    it("should extend the session window when refreshing a token", async () => {
+      const loginRes = await request(app)
+        .post("/users/login")
+        .send({
+          email: "testuser_quang@example.com",
+          password: "password123"
+        });
+
+      expect(loginRes.statusCode).toEqual(200);
+      const refreshToken = loginRes.body.data.refreshToken;
+      expect(refreshToken).toBeTruthy();
+
+      const user = await User.findOne({
+        email: "testuser_quang@example.com",
+      }).select("+refreshTokenSessionExpiresAt");
+      const previousSessionExpiry = new Date(Date.now() + 30 * 60 * 1000);
+      user.refreshTokenSessionExpiresAt = previousSessionExpiry;
+      await user.save();
+
+      const refreshRes = await request(app)
+        .post("/users/refresh-token")
+        .send({ refreshToken });
+
+      expect(refreshRes.statusCode).toEqual(200);
+      expect(refreshRes.body.success).toBe(true);
+
+      const refreshedUser = await User.findOne({
+        email: "testuser_quang@example.com",
+      }).select("+refreshTokenSessionExpiresAt");
+
+      expect(refreshedUser.refreshTokenSessionExpiresAt.getTime()).toBeGreaterThan(
+        previousSessionExpiry.getTime()
+      );
+    });
   });
 
   // --- SECTION 3: SECURITY & AUTHORIZATION ---
