@@ -21,54 +21,63 @@ exports.createPaymentIntent = async (userId, orderPayload) => {
     throw error;
   }
 
-  const order = await orderService.createPendingPayment(userId, orderPayload);
-  const totalInCents = Math.round(Number(order.orderTotal.total) * 100);
+  let order;
 
-  if (totalInCents < 100) {
-    const error = new Error("Order total must be at least $1.00 for card payment.");
-    error.status = 400;
+  try {
+    order = await orderService.createPendingPayment(userId, orderPayload);
+    const totalInCents = Math.round(Number(order.orderTotal.total) * 100);
+
+    if (totalInCents < 100) {
+      const error = new Error("Order total must be at least $1.00 for card payment.");
+      error.status = 400;
+      throw error;
+    }
+
+    const customer = await stripe.customers.create({
+      email: user.email,
+      name: user.address?.fullName || user.email,
+      address: {
+        line1: order.shippingAddress.street,
+        city: order.shippingAddress.city,
+        state: order.shippingAddress.state,
+        postal_code: order.shippingAddress.postalCode,
+        country: order.shippingAddress.country || "US",
+      },
+    });
+
+    const ephemeralKey = await stripe.ephemeralKeys.create(
+      { customer: customer.id },
+      { apiVersion: "2026-01-28.clover" }
+    );
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: totalInCents,
+      currency: "usd",
+      customer: customer.id,
+      description: `Order ${order._id}`,
+      automatic_payment_methods: { enabled: true },
+      metadata: {
+        orderId: order._id.toString(),
+        userId: userId.toString(),
+      },
+    });
+
+    await orderService.attachPaymentIntent(order._id, paymentIntent.id);
+
+    return {
+      orderId: order._id,
+      paymentIntent: paymentIntent.client_secret,
+      ephemeralKey: ephemeralKey.secret,
+      customer: customer.id,
+      publishableKey: config.stripe.publishableKey,
+      orderTotal: order.orderTotal,
+    };
+  } catch (error) {
+    if (order?._id) {
+      await orderService.cancelPendingPaymentOrder(order._id);
+    }
     throw error;
   }
-
-  const customer = await stripe.customers.create({
-    email: user.email,
-    name: user.address?.fullName || user.email,
-    address: {
-      line1: order.shippingAddress.street,
-      city: order.shippingAddress.city,
-      state: order.shippingAddress.state,
-      postal_code: order.shippingAddress.postalCode,
-      country: order.shippingAddress.country || "US",
-    },
-  });
-
-  const ephemeralKey = await stripe.ephemeralKeys.create(
-    { customer: customer.id },
-    { apiVersion: "2026-01-28.clover" }
-  );
-
-  const paymentIntent = await stripe.paymentIntents.create({
-    amount: totalInCents,
-    currency: "usd",
-    customer: customer.id,
-    description: `Order ${order._id}`,
-    automatic_payment_methods: { enabled: true },
-    metadata: {
-      orderId: order._id.toString(),
-      userId: userId.toString(),
-    },
-  });
-
-  await orderService.attachPaymentIntent(order._id, paymentIntent.id);
-
-  return {
-    orderId: order._id,
-    paymentIntent: paymentIntent.client_secret,
-    ephemeralKey: ephemeralKey.secret,
-    customer: customer.id,
-    publishableKey: config.stripe.publishableKey,
-    orderTotal: order.orderTotal,
-  };
 };
 
 exports.handleStripeWebhook = async (req) => {

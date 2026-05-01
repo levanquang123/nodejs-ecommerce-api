@@ -26,8 +26,22 @@ exports.createCouponSchema = Joi.object({
 
 exports.updateCouponSchema = exports.createCouponSchema;
 
+const couponPreviewItem = Joi.object({
+  productID: objectId,
+  productId: objectId,
+  variantId: objectId.allow(null, ""),
+  quantity: Joi.number().integer().min(1).required(),
+}).or("productID", "productId").unknown(true);
+
 exports.checkCouponSchema = Joi.object({
   couponCode: Joi.string().required(),
-  productIds: Joi.array().items(Joi.string()).required(),
-  purchaseAmount: Joi.number().required(),
+  productIds: Joi.array().items(objectId).default([]),
+  purchaseAmount: Joi.number().min(0),
+  items: Joi.array().items(couponPreviewItem).default([]),
+}).custom((value, helpers) => {
+  if ((!value.items || value.items.length === 0) &&
+      (!value.productIds || value.productIds.length === 0)) {
+    return helpers.message("At least one checkout item is required.");
+  }
+  return value;
 });

@@ -68,8 +68,13 @@ async function createProductFixture({ price = 100, offerPrice, quantity = 10 } =
 }
 
 async function cleanupTestData() {
+  const testUsers = await User.find({
+    email: /@critical-test\.example\.com$/,
+  }).select("_id");
+  const testUserIds = testUsers.map((user) => user._id);
+
   await Promise.all([
-    Order.deleteMany({}),
+    Order.deleteMany({ userID: { $in: testUserIds } }),
     Product.deleteMany({ name: /^product_fixture_/ }),
     Coupon.deleteMany({ couponCode: /^coupon_fixture_/ }),
     SubCategory.deleteMany({ name: /^subcategory_fixture_/ }),
@@ -191,6 +196,46 @@ describe("Production-critical API behavior", () => {
 
     const updatedProduct = await Product.findById(product._id);
     expect(updatedProduct.quantity).toBe(3);
+  });
+
+  it("checks coupons using server-side item prices", async () => {
+    const { product } = await createProductFixture({
+      price: 100,
+      offerPrice: 80,
+      quantity: 5,
+    });
+
+    await Coupon.create({
+      couponCode: `coupon_${unique("fixture")}`,
+      discountType: "percentage",
+      discountAmount: 10,
+      minimumPurchaseAmount: 100,
+      endDate: new Date("2099-12-31T00:00:00.000Z"),
+      status: "active",
+    });
+
+    const coupon = await Coupon.findOne({ couponCode: /^coupon_fixture_/ });
+
+    const res = await request(app)
+      .post("/couponCodes/check-coupon")
+      .send({
+        couponCode: coupon.couponCode.toUpperCase(),
+        purchaseAmount: 1,
+        productIds: [product._id.toString()],
+        items: [
+          {
+            productID: product._id.toString(),
+            quantity: 2,
+          },
+        ],
+      });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data.orderTotal).toMatchObject({
+      subtotal: 160,
+      discount: 16,
+      total: 144,
+    });
   });
 
   it("rejects prepaid order creation through /orders", async () => {

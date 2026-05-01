@@ -360,6 +360,22 @@ exports.attachPaymentIntent = async (orderId, paymentIntentId) => {
   return updated;
 };
 
+exports.cancelPendingPaymentOrder = async (orderId) => {
+  if (!orderId) return null;
+
+  return await Order.findOneAndUpdate(
+    {
+      _id: orderId,
+      paymentStatus: { $ne: "paid" },
+    },
+    {
+      paymentStatus: "cancelled",
+      orderStatus: "cancelled",
+    },
+    { new: true }
+  );
+};
+
 exports.markPaymentSucceeded = async (paymentIntentId) => {
   const session = await mongoose.startSession();
   session.startTransaction();
