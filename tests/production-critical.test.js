@@ -144,6 +144,29 @@ describe("Production-critical API behavior", () => {
     expect(Array.isArray(adminRes.body.data)).toBe(true);
   });
 
+  it("returns a conflict response for duplicate category names", async () => {
+    const admin = await createAdmin(
+      `category-admin-${unique("id")}@critical-test.example.com`
+    );
+    const categoryName = `category_${unique("fixture")}`;
+
+    const firstRes = await request(app)
+      .post("/categories")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .field("name", categoryName);
+
+    expect(firstRes.statusCode).toBe(201);
+
+    const duplicateRes = await request(app)
+      .post("/categories")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .field("name", categoryName);
+
+    expect(duplicateRes.statusCode).toBe(409);
+    expect(duplicateRes.body.success).toBe(false);
+    expect(duplicateRes.body.message).toContain("Category already exists");
+  });
+
   it("creates COD orders with token user and server-side prices only", async () => {
     const buyer = await registerAndLogin(
       `buyer-${unique("id")}@critical-test.example.com`

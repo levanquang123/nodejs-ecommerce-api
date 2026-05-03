@@ -191,8 +191,59 @@ app.use((req, res) => {
 
 Sentry.setupExpressErrorHandler(app);
 
+function inferOperationalStatusCode(err) {
+  if (err.status || err.statusCode) return err.status || err.statusCode;
+
+  if (err.code === 11000) return 409;
+  if (err.name === "CastError" || err.name === "ValidationError") return 400;
+  if (err.name === "JsonWebTokenError" || err.name === "TokenExpiredError") {
+    return 401;
+  }
+
+  const message = String(err.message || "").toLowerCase();
+
+  if (message.includes("already exists") || message.includes("duplicate")) {
+    return 409;
+  }
+
+  if (
+    message.includes("cannot delete") ||
+    message.includes("associated with") ||
+    message.includes("referencing")
+  ) {
+    return 409;
+  }
+
+  if (message.includes("not found")) return 404;
+
+  if (
+    message.includes("access denied") ||
+    message.includes("admin only") ||
+    message.includes("you can only")
+  ) {
+    return 403;
+  }
+
+  if (
+    message.includes("invalid") ||
+    message.includes("required") ||
+    message.includes("must ") ||
+    message.includes("cannot be greater") ||
+    message.includes("minimum purchase") ||
+    message.includes("expired") ||
+    message.includes("inactive") ||
+    message.includes("not applicable") ||
+    message.includes("out of stock") ||
+    message.includes("no products")
+  ) {
+    return 400;
+  }
+
+  return 500;
+}
+
 app.use((err, req, res, next) => {
-  const statusCode = err.status || 500;
+  const statusCode = inferOperationalStatusCode(err);
   const isOperational = statusCode < 500;
 
   if (statusCode >= 500 && !res.sentry) {
