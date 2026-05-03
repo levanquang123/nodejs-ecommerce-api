@@ -150,6 +150,33 @@ describe("User Management System (User API)", () => {
       expect(refreshRes.body.data.refreshToken).toBeTruthy();
     });
 
+    it("should tolerate a stale refresh token briefly after token rotation", async () => {
+      const loginRes = await request(app)
+        .post("/users/login")
+        .send({
+          email: "testuser_quang@example.com",
+          password: "password123"
+        });
+
+      expect(loginRes.statusCode).toEqual(200);
+      const refreshToken = loginRes.body.data.refreshToken;
+
+      const firstRefreshRes = await request(app)
+        .post("/users/refresh-token")
+        .send({ refreshToken });
+
+      expect(firstRefreshRes.statusCode).toEqual(200);
+      expect(firstRefreshRes.body.data.refreshToken).toBeTruthy();
+
+      const staleRefreshRes = await request(app)
+        .post("/users/refresh-token")
+        .send({ refreshToken });
+
+      expect(staleRefreshRes.statusCode).toEqual(200);
+      expect(staleRefreshRes.body.success).toBe(true);
+      expect(staleRefreshRes.body.data.refreshToken).toBeTruthy();
+    });
+
     it("should logout only the current session", async () => {
       const adminLoginRes = await request(app)
         .post("/users/login")

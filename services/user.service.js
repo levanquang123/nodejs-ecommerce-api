@@ -6,6 +6,7 @@ const config = require("../config/env");
 
 const MIN_PASSWORD_LENGTH = 6;
 const REFRESH_TOKEN_SESSION_LIMIT = 10;
+const REFRESH_TOKEN_ROTATION_GRACE_MS = 60 * 1000;
 const ADDRESS_FIELDS = [
   "fullName",
   "phone",
@@ -85,9 +86,13 @@ function getRefreshTokenExpiresInSeconds(sessionExpiresAt) {
 
 async function issueTokensForUser(
   user,
-  { startNewSession = false, sessionId } = {}
+  { startNewSession = false, sessionId, preservePreviousRefreshTokenHash } = {}
 ) {
-  return await issueTokensForSession(user, { startNewSession, sessionId });
+  return await issueTokensForSession(user, {
+    startNewSession,
+    sessionId,
+    preservePreviousRefreshTokenHash,
+  });
 }
 
 function getUsableRefreshTokenSessions(user) {
@@ -119,7 +124,7 @@ function limitRefreshTokenSessions(user) {
 
 async function issueTokensForSession(
   user,
-  { startNewSession = false, sessionId } = {}
+  { startNewSession = false, sessionId, preservePreviousRefreshTokenHash } = {}
 ) {
   if (!Array.isArray(user.refreshTokenSessions)) {
     user.refreshTokenSessions = [];
@@ -154,6 +159,14 @@ async function issueTokensForSession(
   );
   const decodedRefresh = jwt.verify(refreshToken, config.refreshToken.secret);
   const accessToken = generateAccessToken(user, session.sessionId);
+
+  const previousHash = preservePreviousRefreshTokenHash || session.refreshTokenHash;
+  if (previousHash) {
+    session.previousRefreshTokenHash = previousHash;
+    session.previousRefreshTokenValidUntil = new Date(
+      Date.now() + REFRESH_TOKEN_ROTATION_GRACE_MS
+    );
+  }
 
   session.refreshTokenHash = hashToken(refreshToken);
   session.refreshTokenExpiresAt = new Date(decodedRefresh.exp * 1000);
@@ -388,6 +401,19 @@ exports.refreshToken = async ({ refreshToken } = {}) => {
     }
 
     if (incomingHash !== session.refreshTokenHash) {
+      const previousTokenStillAllowed =
+        session.previousRefreshTokenHash &&
+        incomingHash === session.previousRefreshTokenHash &&
+        session.previousRefreshTokenValidUntil &&
+        session.previousRefreshTokenValidUntil.getTime() > Date.now();
+
+      if (previousTokenStillAllowed) {
+        return await issueTokensForUser(user, {
+          sessionId: session.sessionId,
+          preservePreviousRefreshTokenHash: incomingHash,
+        });
+      }
+
       throw createError("Invalid or expired refresh token", 401);
     }
 

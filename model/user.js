@@ -99,6 +99,14 @@ const userSchema = new mongoose.Schema(
             type: Date,
             required: true,
           },
+          previousRefreshTokenHash: {
+            type: String,
+            default: null,
+          },
+          previousRefreshTokenValidUntil: {
+            type: Date,
+            default: null,
+          },
           refreshTokenSessionExpiresAt: {
             type: Date,
             required: true,
