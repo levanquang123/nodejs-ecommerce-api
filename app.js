@@ -62,7 +62,6 @@ app.get("/health", (req, res) => {
     version: packageJson.version,
     status: "ok",
     environment: config.env,
-    env: config.env,
     uptime: Math.round(process.uptime()),
     timestamp: new Date().toISOString(),
   });
@@ -83,7 +82,6 @@ app.get("/ready", (req, res) => {
     version: packageJson.version,
     status: isDatabaseReady ? "ready" : "not_ready",
     environment: config.env,
-    env: config.env,
     checks: {
       api: "ok",
       database:
@@ -173,7 +171,6 @@ app.get("/", (req, res) => {
     service: packageJson.name,
     version: packageJson.version,
     environment: config.env,
-    env: config.env,
     timestamp: new Date().toISOString(),
   });
 });
