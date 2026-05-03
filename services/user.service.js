@@ -24,9 +24,10 @@ function createError(message, status) {
   return error;
 }
 
-function generateAccessToken(user, sessionId) {
+function generateAccessToken(user, sessionId, clientType) {
   const payload = { id: user._id, role: user.role, tokenType: "access" };
   if (sessionId) payload.sid = sessionId;
+  if (clientType) payload.clientType = normalizeClientType(clientType);
 
   return jwt.sign(
     payload,
@@ -191,7 +192,11 @@ async function issueTokensForSession(
     refreshTokenExpiresInSeconds
   );
   const decodedRefresh = jwt.verify(refreshToken, config.refreshToken.secret);
-  const accessToken = generateAccessToken(user, session.sessionId);
+  const accessToken = generateAccessToken(
+    user,
+    session.sessionId,
+    session.clientType || normalizedClientType
+  );
 
   const previousHash = preservePreviousRefreshTokenHash || session.refreshTokenHash;
   if (previousHash) {

@@ -161,6 +161,7 @@ describe("User Management System (User API)", () => {
 
       expect(firstLoginRes.statusCode).toEqual(200);
       const firstRefreshToken = firstLoginRes.body.data.refreshToken;
+      const firstAccessToken = firstLoginRes.body.data.accessToken;
 
       const secondLoginRes = await request(app)
         .post("/users/login")
@@ -185,6 +186,12 @@ describe("User Management System (User API)", () => {
 
       expect(secondRefreshRes.statusCode).toEqual(200);
       expect(secondRefreshRes.body.success).toBe(true);
+
+      const revokedAccessRes = await request(app)
+        .get("/users/me")
+        .set("Authorization", `Bearer ${firstAccessToken}`);
+
+      expect(revokedAccessRes.statusCode).toEqual(401);
     });
 
     it("should allow mobile_client sessions to coexist", async () => {
