@@ -201,6 +201,33 @@ function parseVariantImages(images, fileMap) {
   });
 }
 
+function parseRemoveImages(removeImages) {
+  if (removeImages === undefined || removeImages === null || removeImages === "") {
+    return [];
+  }
+
+  let parsed = removeImages;
+  if (typeof removeImages === "string") {
+    try {
+      parsed = JSON.parse(removeImages);
+    } catch (error) {
+      throw new Error("Invalid removeImages format. Expected JSON array.");
+    }
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new Error("Invalid removeImages format. Expected array.");
+  }
+
+  return parsed.map((imageNumber) => {
+    const parsedNumber = Number(imageNumber);
+    if (!Number.isInteger(parsedNumber) || parsedNumber < 1 || parsedNumber > 5) {
+      throw new Error("removeImages must contain image numbers from 1 to 5.");
+    }
+    return parsedNumber;
+  });
+}
+
 async function parseVariants(rawVariants, fileMap) {
   if (rawVariants === undefined) return undefined;
   if (rawVariants === "" || rawVariants === null) return [];
@@ -465,6 +492,12 @@ exports.update = async (id, req) => {
         product.proVariantId = proVariantId ?? product.proVariantId;
         if (parsedVariants !== undefined) {
           product.variants = parsedVariants;
+        }
+
+        if (imageNumbersToRemove.size > 0) {
+          product.images = product.images.filter(
+            (img) => !imageNumbersToRemove.has(img.image)
+          );
         }
 
         const fieldNames = ["image1", "image2", "image3", "image4", "image5"];
