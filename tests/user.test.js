@@ -150,6 +150,73 @@ describe("User Management System (User API)", () => {
       expect(refreshRes.body.data.refreshToken).toBeTruthy();
     });
 
+    it("should keep only one active web_admin refresh session", async () => {
+      const firstLoginRes = await request(app)
+        .post("/users/login")
+        .set("x-client-type", "web_admin")
+        .send({
+          email: "testuser_quang@example.com",
+          password: "password123"
+        });
+
+      expect(firstLoginRes.statusCode).toEqual(200);
+      const firstRefreshToken = firstLoginRes.body.data.refreshToken;
+
+      const secondLoginRes = await request(app)
+        .post("/users/login")
+        .set("x-client-type", "web_admin")
+        .send({
+          email: "testuser_quang@example.com",
+          password: "password123"
+        });
+
+      expect(secondLoginRes.statusCode).toEqual(200);
+      const secondRefreshToken = secondLoginRes.body.data.refreshToken;
+
+      const firstRefreshRes = await request(app)
+        .post("/users/refresh-token")
+        .send({ refreshToken: firstRefreshToken });
+
+      expect(firstRefreshRes.statusCode).toEqual(401);
+
+      const secondRefreshRes = await request(app)
+        .post("/users/refresh-token")
+        .send({ refreshToken: secondRefreshToken });
+
+      expect(secondRefreshRes.statusCode).toEqual(200);
+      expect(secondRefreshRes.body.success).toBe(true);
+    });
+
+    it("should allow mobile_client sessions to coexist", async () => {
+      const firstLoginRes = await request(app)
+        .post("/users/login")
+        .set("x-client-type", "mobile_client")
+        .send({
+          email: "testuser_quang@example.com",
+          password: "password123"
+        });
+
+      expect(firstLoginRes.statusCode).toEqual(200);
+      const firstRefreshToken = firstLoginRes.body.data.refreshToken;
+
+      const secondLoginRes = await request(app)
+        .post("/users/login")
+        .set("x-client-type", "mobile_client")
+        .send({
+          email: "testuser_quang@example.com",
+          password: "password123"
+        });
+
+      expect(secondLoginRes.statusCode).toEqual(200);
+
+      const firstRefreshRes = await request(app)
+        .post("/users/refresh-token")
+        .send({ refreshToken: firstRefreshToken });
+
+      expect(firstRefreshRes.statusCode).toEqual(200);
+      expect(firstRefreshRes.body.success).toBe(true);
+    });
+
     it("should tolerate a stale refresh token briefly after token rotation", async () => {
       const loginRes = await request(app)
         .post("/users/login")

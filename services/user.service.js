@@ -7,6 +7,7 @@ const config = require("../config/env");
 const MIN_PASSWORD_LENGTH = 6;
 const REFRESH_TOKEN_SESSION_LIMIT = 10;
 const REFRESH_TOKEN_ROTATION_GRACE_MS = 60 * 1000;
+const CLIENT_TYPES = new Set(["web_admin", "mobile_client"]);
 const ADDRESS_FIELDS = [
   "fullName",
   "phone",
@@ -66,6 +67,11 @@ function hashToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
+function normalizeClientType(clientType) {
+  const normalized = String(clientType || "").trim().toLowerCase();
+  return CLIENT_TYPES.has(normalized) ? normalized : "unknown";
+}
+
 function buildAuthPayload(user, { accessToken, refreshToken }) {
   return {
     user: sanitizeUser(user),
@@ -86,12 +92,18 @@ function getRefreshTokenExpiresInSeconds(sessionExpiresAt) {
 
 async function issueTokensForUser(
   user,
-  { startNewSession = false, sessionId, preservePreviousRefreshTokenHash } = {}
+  {
+    startNewSession = false,
+    sessionId,
+    preservePreviousRefreshTokenHash,
+    clientType,
+  } = {}
 ) {
   return await issueTokensForSession(user, {
     startNewSession,
     sessionId,
     preservePreviousRefreshTokenHash,
+    clientType,
   });
 }
 
@@ -124,10 +136,26 @@ function limitRefreshTokenSessions(user) {
 
 async function issueTokensForSession(
   user,
-  { startNewSession = false, sessionId, preservePreviousRefreshTokenHash } = {}
+  {
+    startNewSession = false,
+    sessionId,
+    preservePreviousRefreshTokenHash,
+    clientType,
+  } = {}
 ) {
   if (!Array.isArray(user.refreshTokenSessions)) {
     user.refreshTokenSessions = [];
+  }
+
+  const normalizedClientType = normalizeClientType(clientType);
+
+  if (startNewSession && normalizedClientType === "web_admin") {
+    user.refreshTokenSessions = user.refreshTokenSessions.filter(
+      (session) =>
+        session.clientType &&
+        session.clientType !== "unknown" &&
+        session.clientType !== "web_admin"
+    );
   }
 
   limitRefreshTokenSessions(user);
@@ -140,9 +168,14 @@ async function issueTokensForSession(
   if (!session) {
     user.refreshTokenSessions.push({
       sessionId: sessionId || crypto.randomUUID(),
+      clientType: normalizedClientType,
       createdAt: new Date(),
     });
     session = user.refreshTokenSessions[user.refreshTokenSessions.length - 1];
+  }
+
+  if (!session.clientType || session.clientType === "unknown") {
+    session.clientType = normalizedClientType;
   }
 
   session.refreshTokenSessionExpiresAt = new Date(
@@ -214,7 +247,7 @@ exports.getById = async (id, currentUser) => {
   return await User.findById(id).select("-password");
 };
 
-exports.register = async ({ email, password }) => {
+exports.register = async ({ email, password }, clientType) => {
   email = email.trim().toLowerCase();
 
   if (password.length < MIN_PASSWORD_LENGTH) {
@@ -233,10 +266,13 @@ exports.register = async ({ email, password }) => {
     password: hashed,
   });
 
-  return await issueTokensForUser(user, { startNewSession: true });
+  return await issueTokensForUser(user, {
+    startNewSession: true,
+    clientType,
+  });
 };
 
-exports.login = async ({ email, password }) => {
+exports.login = async ({ email, password }, clientType) => {
   email = email.trim().toLowerCase();
 
   const user = await User.findOne({ email }).select(
@@ -247,7 +283,10 @@ exports.login = async ({ email, password }) => {
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) throw createError("Invalid email or password", 401);
 
-  return await issueTokensForUser(user, { startNewSession: true });
+  return await issueTokensForUser(user, {
+    startNewSession: true,
+    clientType,
+  });
 };
 
 exports.update = async (id, currentUser, body) => {

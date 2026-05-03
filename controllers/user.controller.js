@@ -58,7 +58,7 @@ exports.getById = asyncHandler(async (req, res) => {
 });
 
 exports.register = asyncHandler(async (req, res) => {
-  const data = await userService.register(req.body);
+  const data = await userService.register(req.body, req.headers["x-client-type"]);
 
   res.status(201).json({
     success: true,
@@ -68,7 +68,7 @@ exports.register = asyncHandler(async (req, res) => {
 });
 
 exports.login = asyncHandler(async (req, res) => {
-  const data = await userService.login(req.body);
+  const data = await userService.login(req.body, req.headers["x-client-type"]);
 
   res.json({
     success: true,

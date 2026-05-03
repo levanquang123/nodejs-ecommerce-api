@@ -91,6 +91,11 @@ const userSchema = new mongoose.Schema(
             type: String,
             required: true,
           },
+          clientType: {
+            type: String,
+            enum: ["web_admin", "mobile_client", "unknown"],
+            default: "unknown",
+          },
           refreshTokenHash: {
             type: String,
             required: true,
