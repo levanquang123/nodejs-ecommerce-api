@@ -102,15 +102,6 @@ app.use(
       }
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "Accept",
-      "x-request-id",
-      "x-client-type",
-      "sentry-trace",
-      "baggage",
-    ],
     exposedHeaders: ["x-request-id", "sentry-trace", "baggage"],
     credentials: true,
   })
