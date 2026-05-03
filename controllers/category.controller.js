@@ -46,43 +46,51 @@ exports.getById = asyncHandler(async (req, res) => {
   });
 });
 
-exports.create = asyncHandler(async (req, res) => {
+exports.create = (req, res, next) => {
   uploadCategory.single("img")(req, res, async function (err) {
     if (err) return handleMulterError(err, req, res);
 
-    const image = req.file ? req.file.path : "no_url";
+    try {
+      const image = req.file ? req.file.path : "no_url";
 
-    const data = await categoryService.create({
-      name: req.body.name,
-      image,
-    });
+      const data = await categoryService.create({
+        name: req.body.name,
+        image,
+      });
 
-    res.status(201).json({
-      success: true,
-      message: "Category created successfully.",
-      data,
-    });
+      res.status(201).json({
+        success: true,
+        message: "Category created successfully.",
+        data,
+      });
+    } catch (error) {
+      next(error);
+    }
   });
-});
+};
 
-exports.update = asyncHandler(async (req, res) => {
+exports.update = (req, res, next) => {
   uploadCategory.single("img")(req, res, async function (err) {
     if (err) return handleMulterError(err, req, res);
 
-    const image = req.file ? req.file.path : null;
+    try {
+      const image = req.file ? req.file.path : null;
 
-    const data = await categoryService.update(req.params.id, {
-      name: req.body.name,
-      image,
-    });
+      const data = await categoryService.update(req.params.id, {
+        name: req.body.name,
+        image,
+      });
 
-    res.json({
-      success: true,
-      message: "Category updated successfully.",
-      data,
-    });
+      res.json({
+        success: true,
+        message: "Category updated successfully.",
+        data,
+      });
+    } catch (error) {
+      next(error);
+    }
   });
-});
+};
 
 exports.remove = asyncHandler(async (req, res) => {
   await categoryService.delete(req.params.id);

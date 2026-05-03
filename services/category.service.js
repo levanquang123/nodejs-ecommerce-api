@@ -2,6 +2,12 @@ const Category = require("../model/category");
 const SubCategory = require("../model/subCategory");
 const Product = require("../model/product");
 
+function createError(message, status) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
 exports.getAll = async () => {
   return await Category.find();
 };
@@ -13,7 +19,7 @@ exports.getById = async (id) => {
 exports.create = async ({ name, image }) => {
   const exist = await Category.findOne({ name });
   if (exist) {
-    throw new Error("Category already exists.");
+    throw createError("Category already exists.", 409);
   }
 
   const category = new Category({ name, image });
@@ -29,7 +35,7 @@ exports.update = async (id, { name, image }) => {
       name,
       _id: { $ne: id },
     });
-    if (exist) throw new Error("Category already exists.");
+    if (exist) throw createError("Category already exists.", 409);
     category.name = name;
   }
 
