@@ -16,6 +16,7 @@ const {
   paymentLimiter,
 } = require("./middleware/rateLimit");
 const paymentController = require("./controllers/payment.controller");
+const packageJson = require("./package.json");
 
 const app = express();
 
@@ -57,21 +58,38 @@ app.use((req, res, next) => {
 app.get("/health", (req, res) => {
   res.status(200).json({
     success: true,
+    service: packageJson.name,
+    version: packageJson.version,
     status: "ok",
+    environment: config.env,
     env: config.env,
+    uptime: Math.round(process.uptime()),
     timestamp: new Date().toISOString(),
   });
 });
 
 app.get("/ready", (req, res) => {
   const isDatabaseReady = mongoose.connection.readyState === 1;
+  const databaseStatusByState = {
+    0: "disconnected",
+    1: "connected",
+    2: "connecting",
+    3: "disconnecting",
+  };
 
   res.status(isDatabaseReady ? 200 : 503).json({
     success: isDatabaseReady,
+    service: packageJson.name,
+    version: packageJson.version,
     status: isDatabaseReady ? "ready" : "not_ready",
+    environment: config.env,
+    env: config.env,
     checks: {
-      database: isDatabaseReady ? "connected" : "disconnected",
+      api: "ok",
+      database:
+        databaseStatusByState[mongoose.connection.readyState] || "unknown",
     },
+    uptime: Math.round(process.uptime()),
     timestamp: new Date().toISOString(),
   });
 });
@@ -152,6 +170,9 @@ app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
     message: "E-commerce API is live",
+    service: packageJson.name,
+    version: packageJson.version,
+    environment: config.env,
     env: config.env,
     timestamp: new Date().toISOString(),
   });
