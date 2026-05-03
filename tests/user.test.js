@@ -111,6 +111,16 @@ describe("User Management System (User API)", () => {
       );
     });
 
+    it("should return 401 when refresh token is missing", async () => {
+      const refreshRes = await request(app)
+        .post("/users/refresh-token")
+        .send({});
+
+      expect(refreshRes.statusCode).toEqual(401);
+      expect(refreshRes.body.success).toBe(false);
+      expect(refreshRes.body.message).toContain("Refresh token is required");
+    });
+
     it("should keep earlier refresh sessions valid after another login", async () => {
       const firstLoginRes = await request(app)
         .post("/users/login")

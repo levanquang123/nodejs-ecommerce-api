@@ -78,7 +78,14 @@ exports.login = asyncHandler(async (req, res) => {
 });
 
 exports.refreshToken = asyncHandler(async (req, res) => {
-  const data = await userService.refreshToken(req.body);
+  const data = await userService.refreshToken({
+    ...req.body,
+    refreshToken:
+      req.body?.refreshToken ||
+      req.body?.refresh_token ||
+      req.body?.token ||
+      req.headers["x-refresh-token"],
+  });
 
   res.json({
     success: true,

@@ -337,7 +337,7 @@ exports.updateUserAddress = async (userId, payload) => {
 
 exports.refreshToken = async ({ refreshToken } = {}) => {
   if (!refreshToken) {
-    throw createError("Refresh token is required", 400);
+    throw createError("Refresh token is required", 401);
   }
 
   let decoded;
