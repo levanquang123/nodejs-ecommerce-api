@@ -110,6 +110,78 @@ describe("User Management System (User API)", () => {
         previousSessionExpiry.getTime()
       );
     });
+
+    it("should keep earlier refresh sessions valid after another login", async () => {
+      const firstLoginRes = await request(app)
+        .post("/users/login")
+        .send({
+          email: "testuser_quang@example.com",
+          password: "password123"
+        });
+
+      expect(firstLoginRes.statusCode).toEqual(200);
+      const firstRefreshToken = firstLoginRes.body.data.refreshToken;
+
+      const secondLoginRes = await request(app)
+        .post("/users/login")
+        .send({
+          email: "testuser_quang@example.com",
+          password: "password123"
+        });
+
+      expect(secondLoginRes.statusCode).toEqual(200);
+
+      const refreshRes = await request(app)
+        .post("/users/refresh-token")
+        .send({ refreshToken: firstRefreshToken });
+
+      expect(refreshRes.statusCode).toEqual(200);
+      expect(refreshRes.body.success).toBe(true);
+      expect(refreshRes.body.data.refreshToken).toBeTruthy();
+    });
+
+    it("should logout only the current session", async () => {
+      const adminLoginRes = await request(app)
+        .post("/users/login")
+        .send({
+          email: "testuser_quang@example.com",
+          password: "password123"
+        });
+
+      const clientLoginRes = await request(app)
+        .post("/users/login")
+        .send({
+          email: "testuser_quang@example.com",
+          password: "password123"
+        });
+
+      expect(adminLoginRes.statusCode).toEqual(200);
+      expect(clientLoginRes.statusCode).toEqual(200);
+
+      const adminAccessToken = adminLoginRes.body.data.accessToken;
+      const adminRefreshToken = adminLoginRes.body.data.refreshToken;
+      const clientRefreshToken = clientLoginRes.body.data.refreshToken;
+
+      const logoutRes = await request(app)
+        .post("/users/logout")
+        .set("Authorization", `Bearer ${adminAccessToken}`)
+        .send({});
+
+      expect(logoutRes.statusCode).toEqual(200);
+
+      const adminRefreshRes = await request(app)
+        .post("/users/refresh-token")
+        .send({ refreshToken: adminRefreshToken });
+
+      expect(adminRefreshRes.statusCode).toEqual(401);
+
+      const clientRefreshRes = await request(app)
+        .post("/users/refresh-token")
+        .send({ refreshToken: clientRefreshToken });
+
+      expect(clientRefreshRes.statusCode).toEqual(200);
+      expect(clientRefreshRes.body.success).toBe(true);
+    });
   });
 
   // --- SECTION 3: SECURITY & AUTHORIZATION ---

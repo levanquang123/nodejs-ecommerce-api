@@ -27,7 +27,8 @@ module.exports = (req, res, next) => {
 
     req.user = {
       id: decoded.id,
-      role: decoded.role
+      role: decoded.role,
+      sessionId: decoded.sid,
     };
 
     Sentry.setUser({

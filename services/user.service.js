@@ -5,6 +5,7 @@ const crypto = require("crypto");
 const config = require("../config/env");
 
 const MIN_PASSWORD_LENGTH = 6;
+const REFRESH_TOKEN_SESSION_LIMIT = 10;
 const ADDRESS_FIELDS = [
   "fullName",
   "phone",
@@ -21,17 +22,27 @@ function createError(message, status) {
   return error;
 }
 
-function generateAccessToken(user) {
+function generateAccessToken(user, sessionId) {
+  const payload = { id: user._id, role: user.role, tokenType: "access" };
+  if (sessionId) payload.sid = sessionId;
+
   return jwt.sign(
-    { id: user._id, role: user.role, tokenType: "access" },
+    payload,
     config.accessToken.secret,
     { expiresIn: config.accessToken.expiresIn }
   );
 }
 
-function generateRefreshToken(user, expiresIn = config.refreshToken.expiresIn) {
+function generateRefreshToken(
+  user,
+  sessionId,
+  expiresIn = config.refreshToken.expiresIn
+) {
+  const payload = { id: user._id, role: user.role, tokenType: "refresh" };
+  if (sessionId) payload.sid = sessionId;
+
   return jwt.sign(
-    { id: user._id, role: user.role, tokenType: "refresh" },
+    payload,
     config.refreshToken.secret,
     { expiresIn }
   );
@@ -44,6 +55,7 @@ function sanitizeUser(user) {
     refreshTokenHash,
     refreshTokenExpiresAt,
     refreshTokenSessionExpiresAt,
+    refreshTokenSessions,
     ...rest
   } = plain;
   return rest;
@@ -71,34 +83,87 @@ function getRefreshTokenExpiresInSeconds(sessionExpiresAt) {
   return Math.max(1, Math.floor(refreshTokenMs / 1000));
 }
 
-async function issueTokensForUser(user, { startNewSession = false } = {}) {
-  if (
-    user.refreshTokenSessionExpiresAt &&
-    user.refreshTokenSessionExpiresAt.getTime() <= Date.now()
-  ) {
-    await revokeRefreshToken(user);
-    throw createError("Session expired. Please login again.", 401);
+async function issueTokensForUser(
+  user,
+  { startNewSession = false, sessionId } = {}
+) {
+  return await issueTokensForSession(user, { startNewSession, sessionId });
+}
+
+function getUsableRefreshTokenSessions(user) {
+  const now = Date.now();
+  return (Array.isArray(user.refreshTokenSessions)
+    ? user.refreshTokenSessions
+    : []
+  ).filter((session) => {
+    return (
+      session &&
+      session.refreshTokenHash &&
+      session.refreshTokenExpiresAt &&
+      session.refreshTokenSessionExpiresAt &&
+      session.refreshTokenExpiresAt.getTime() > now &&
+      session.refreshTokenSessionExpiresAt.getTime() > now
+    );
+  });
+}
+
+function limitRefreshTokenSessions(user) {
+  user.refreshTokenSessions = getUsableRefreshTokenSessions(user)
+    .sort((a, b) => {
+      const aTime = a.updatedAt ? a.updatedAt.getTime() : 0;
+      const bTime = b.updatedAt ? b.updatedAt.getTime() : 0;
+      return bTime - aTime;
+    })
+    .slice(0, REFRESH_TOKEN_SESSION_LIMIT);
+}
+
+async function issueTokensForSession(
+  user,
+  { startNewSession = false, sessionId } = {}
+) {
+  if (!Array.isArray(user.refreshTokenSessions)) {
+    user.refreshTokenSessions = [];
   }
 
-  if (startNewSession || !user.refreshTokenSessionExpiresAt) {
-    user.refreshTokenSessionExpiresAt = new Date(
-      Date.now() + config.refreshToken.maxAgeMs
-    );
-  } else {
-    user.refreshTokenSessionExpiresAt = new Date(
-      Date.now() + config.refreshToken.maxAgeMs
-    );
+  limitRefreshTokenSessions(user);
+
+  let session =
+    !startNewSession && sessionId
+      ? user.refreshTokenSessions.find((item) => item.sessionId === sessionId)
+      : null;
+
+  if (!session) {
+    user.refreshTokenSessions.push({
+      sessionId: sessionId || crypto.randomUUID(),
+      createdAt: new Date(),
+    });
+    session = user.refreshTokenSessions[user.refreshTokenSessions.length - 1];
   }
+
+  session.refreshTokenSessionExpiresAt = new Date(
+    Date.now() + config.refreshToken.maxAgeMs
+  );
 
   const refreshTokenExpiresInSeconds = getRefreshTokenExpiresInSeconds(
-    user.refreshTokenSessionExpiresAt
+    session.refreshTokenSessionExpiresAt
   );
-  const refreshToken = generateRefreshToken(user, refreshTokenExpiresInSeconds);
+  const refreshToken = generateRefreshToken(
+    user,
+    session.sessionId,
+    refreshTokenExpiresInSeconds
+  );
   const decodedRefresh = jwt.verify(refreshToken, config.refreshToken.secret);
-  const accessToken = generateAccessToken(user);
+  const accessToken = generateAccessToken(user, session.sessionId);
 
-  user.refreshTokenHash = hashToken(refreshToken);
-  user.refreshTokenExpiresAt = new Date(decodedRefresh.exp * 1000);
+  session.refreshTokenHash = hashToken(refreshToken);
+  session.refreshTokenExpiresAt = new Date(decodedRefresh.exp * 1000);
+  session.updatedAt = new Date();
+
+  user.refreshTokenHash = session.refreshTokenHash;
+  user.refreshTokenExpiresAt = session.refreshTokenExpiresAt;
+  user.refreshTokenSessionExpiresAt = session.refreshTokenSessionExpiresAt;
+
+  limitRefreshTokenSessions(user);
   await user.save();
 
   return buildAuthPayload(user, { accessToken, refreshToken });
@@ -108,6 +173,7 @@ async function revokeRefreshToken(user) {
   user.refreshTokenHash = null;
   user.refreshTokenExpiresAt = null;
   user.refreshTokenSessionExpiresAt = null;
+  user.refreshTokenSessions = [];
   await user.save();
 }
 
@@ -160,7 +226,9 @@ exports.register = async ({ email, password }) => {
 exports.login = async ({ email, password }) => {
   email = email.trim().toLowerCase();
 
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ email }).select(
+    "+refreshTokenHash +refreshTokenExpiresAt +refreshTokenSessionExpiresAt +refreshTokenSessions"
+  );
   if (!user) throw createError("Invalid email or password", 401);
 
   const isMatch = await bcrypt.compare(password, user.password);
@@ -284,15 +352,61 @@ exports.refreshToken = async ({ refreshToken } = {}) => {
   }
 
   const user = await User.findById(decoded.id).select(
-    "+refreshTokenHash +refreshTokenExpiresAt +refreshTokenSessionExpiresAt"
+    "+refreshTokenHash +refreshTokenExpiresAt +refreshTokenSessionExpiresAt +refreshTokenSessions"
   );
 
   if (!user || !user.refreshTokenHash || !user.refreshTokenExpiresAt) {
+    const hasSessionTokens =
+      user &&
+      Array.isArray(user.refreshTokenSessions) &&
+      user.refreshTokenSessions.length > 0;
+    if (!hasSessionTokens) {
+      throw createError("Invalid or expired refresh token", 401);
+    }
+  }
+
+  const incomingHash = hashToken(refreshToken);
+  const session = decoded.sid && Array.isArray(user.refreshTokenSessions)
+    ? user.refreshTokenSessions.find((item) => item.sessionId === decoded.sid)
+    : null;
+
+  if (session) {
+    if (session.refreshTokenExpiresAt.getTime() < Date.now()) {
+      user.refreshTokenSessions = user.refreshTokenSessions.filter(
+        (item) => item.sessionId !== session.sessionId
+      );
+      await user.save();
+      throw createError("Refresh token expired. Please login again.", 401);
+    }
+
+    if (session.refreshTokenSessionExpiresAt.getTime() <= Date.now()) {
+      user.refreshTokenSessions = user.refreshTokenSessions.filter(
+        (item) => item.sessionId !== session.sessionId
+      );
+      await user.save();
+      throw createError("Session expired. Please login again.", 401);
+    }
+
+    if (incomingHash !== session.refreshTokenHash) {
+      throw createError("Invalid or expired refresh token", 401);
+    }
+
+    return await issueTokensForUser(user, { sessionId: session.sessionId });
+  }
+
+  if (
+    !user.refreshTokenHash ||
+    !user.refreshTokenExpiresAt ||
+    incomingHash !== user.refreshTokenHash
+  ) {
     throw createError("Invalid or expired refresh token", 401);
   }
 
   if (user.refreshTokenExpiresAt.getTime() < Date.now()) {
-    await revokeRefreshToken(user);
+    user.refreshTokenHash = null;
+    user.refreshTokenExpiresAt = null;
+    user.refreshTokenSessionExpiresAt = null;
+    await user.save();
     throw createError("Refresh token expired. Please login again.", 401);
   }
 
@@ -300,25 +414,31 @@ exports.refreshToken = async ({ refreshToken } = {}) => {
     user.refreshTokenSessionExpiresAt &&
     user.refreshTokenSessionExpiresAt.getTime() <= Date.now()
   ) {
-    await revokeRefreshToken(user);
+    user.refreshTokenHash = null;
+    user.refreshTokenExpiresAt = null;
+    user.refreshTokenSessionExpiresAt = null;
+    await user.save();
     throw createError("Session expired. Please login again.", 401);
   }
 
-  const incomingHash = hashToken(refreshToken);
-  if (incomingHash !== user.refreshTokenHash) {
-    await revokeRefreshToken(user);
-    throw createError("Invalid or expired refresh token", 401);
-  }
-
-  return await issueTokensForUser(user);
+  return await issueTokensForUser(user, { startNewSession: true });
 };
 
-exports.logout = async (userId) => {
+exports.logout = async (userId, sessionId) => {
   const user = await User.findById(userId).select(
-    "+refreshTokenHash +refreshTokenExpiresAt +refreshTokenSessionExpiresAt"
+    "+refreshTokenHash +refreshTokenExpiresAt +refreshTokenSessionExpiresAt +refreshTokenSessions"
   );
 
   if (!user) return;
 
-  await revokeRefreshToken(user);
+  if (!sessionId) {
+    await revokeRefreshToken(user);
+    return;
+  }
+
+  user.refreshTokenSessions = (user.refreshTokenSessions || []).filter(
+    (session) => session.sessionId !== sessionId
+  );
+
+  await user.save();
 };

@@ -88,7 +88,7 @@ exports.refreshToken = asyncHandler(async (req, res) => {
 });
 
 exports.logout = asyncHandler(async (req, res) => {
-  await userService.logout(req.user.id);
+  await userService.logout(req.user.id, req.user.sessionId);
 
   res.json({
     success: true,

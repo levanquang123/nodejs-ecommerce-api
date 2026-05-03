@@ -84,6 +84,38 @@ const userSchema = new mongoose.Schema(
       default: null,
       select: false,
     },
+    refreshTokenSessions: {
+      type: [
+        {
+          sessionId: {
+            type: String,
+            required: true,
+          },
+          refreshTokenHash: {
+            type: String,
+            required: true,
+          },
+          refreshTokenExpiresAt: {
+            type: Date,
+            required: true,
+          },
+          refreshTokenSessionExpiresAt: {
+            type: Date,
+            required: true,
+          },
+          createdAt: {
+            type: Date,
+            default: Date.now,
+          },
+          updatedAt: {
+            type: Date,
+            default: Date.now,
+          },
+        },
+      ],
+      default: [],
+      select: false,
+    },
   },
   { timestamps: true }
 );
