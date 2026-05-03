@@ -432,6 +432,7 @@ exports.update = async (id, req) => {
           proVariantTypeId,
           proVariantId,
           variants,
+          removeImages,
         } = req.body;
 
         const nextPrice = price ?? product.price;
@@ -442,6 +443,7 @@ exports.update = async (id, req) => {
           quantity !== undefined ? toNullableNumber(quantity) : product.quantity;
         const fileMap = toFileMap(req.files || []);
         const parsedVariants = await parseVariants(variants, fileMap);
+        const imageNumbersToRemove = new Set(parseRemoveImages(removeImages));
 
         if (parsedPrice === null || parsedPrice < 0) {
           throw new Error("Product price must be greater than or equal to 0.");
