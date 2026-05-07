@@ -21,7 +21,7 @@ const packageJson = require("./package.json");
 const app = express();
 
 if (config.isProduction) {
-  app.set("trust proxy", 1);
+  app.set("trust proxy", 3);
 }
 
 const logger = winston.createLogger({
