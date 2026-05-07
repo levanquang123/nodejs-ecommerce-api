@@ -19,8 +19,8 @@ const schema = Joi.object({
   ACCESS_TOKEN_SECRET: Joi.string().allow("", null),
   REFRESH_TOKEN_SECRET: Joi.string().allow("", null),
   ACCESS_TOKEN_EXPIRES_IN: Joi.string().default("2m"),
-  REFRESH_TOKEN_EXPIRES_IN: Joi.string().default("15m"),
-  REFRESH_TOKEN_MAX_AGE: Joi.string().default("24h"),
+  REFRESH_TOKEN_EXPIRES_IN: Joi.string().default("7d"),
+  REFRESH_TOKEN_MAX_AGE: Joi.string().default("30d"),
   CORS_ORIGINS: Joi.string().allow("", null),
   RATE_LIMIT_WINDOW_MS: Joi.number().integer().positive().default(15 * 60 * 1000),
   RATE_LIMIT_MAX: Joi.number().integer().positive(),
@@ -39,6 +39,7 @@ const schema = Joi.object({
   SENTRY_TRACES_SAMPLE_RATE: Joi.number().min(0).max(1).allow(null),
   SENTRY_PROFILES_SAMPLE_RATE: Joi.number().min(0).max(1).default(0),
   SENTRY_SEND_DEFAULT_PII: Joi.boolean().truthy("true").falsy("false").default(false),
+  DEBUG_IP_TOKEN: Joi.string().allow("", null),
 }).unknown(true);
 
 const { error, value: env } = schema.validate(process.env, {
@@ -79,6 +80,10 @@ if (!accessTokenSecret) {
   throw new Error("ACCESS_TOKEN_SECRET is required.");
 }
 
+if (isProduction && !env.REFRESH_TOKEN_SECRET) {
+  throw new Error("REFRESH_TOKEN_SECRET is required in production.");
+}
+
 if (isProduction && missingProductionEnv.length) {
   throw new Error(
     `Missing production environment variables: ${missingProductionEnv.join(", ")}`
@@ -89,8 +94,24 @@ if (isProduction && accessTokenSecret.length < 32) {
   throw new Error("ACCESS_TOKEN_SECRET must be at least 32 characters in production.");
 }
 
+if (isProduction && refreshTokenSecret.length < 32) {
+  throw new Error("REFRESH_TOKEN_SECRET must be at least 32 characters in production.");
+}
+
+if (isProduction && refreshTokenSecret === accessTokenSecret) {
+  throw new Error("REFRESH_TOKEN_SECRET must be different from ACCESS_TOKEN_SECRET in production.");
+}
+
+if (refreshTokenExpiresInMs > refreshTokenMaxAgeMs) {
+  throw new Error("REFRESH_TOKEN_EXPIRES_IN cannot be greater than REFRESH_TOKEN_MAX_AGE.");
+}
+
 if (!isProduction && !isTest && accessTokenSecret.length < 32) {
   console.warn("ACCESS_TOKEN_SECRET is short. Use at least 32 characters in production.");
+}
+
+if (!isProduction && !isTest && (!env.REFRESH_TOKEN_SECRET || refreshTokenSecret === accessTokenSecret)) {
+  console.warn("Use a separate REFRESH_TOKEN_SECRET in production.");
 }
 
 if (!isProduction && !isTest && missingProductionEnv.length) {
@@ -135,6 +156,7 @@ module.exports = {
   isTest,
   port: env.PORT,
   mongoUrl: env.MONGO_URL,
+  debugIpToken: env.DEBUG_IP_TOKEN,
   accessToken: {
     secret: accessTokenSecret,
     expiresIn: accessTokenExpiresIn,

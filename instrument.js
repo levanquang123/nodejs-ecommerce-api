@@ -31,7 +31,11 @@ function sanitizeValue(input) {
   for (const [key, value] of Object.entries(input)) {
     const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-    if (SENSITIVE_KEYS.has(normalized)) {
+    const isSensitive = Array.from(SENSITIVE_KEYS).some((key) =>
+      normalized.includes(key)
+    );
+
+    if (isSensitive) {
       output[key] = REDACTED;
       continue;
     }

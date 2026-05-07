@@ -8,6 +8,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "seed:demo": "node scripts/seed-demo-data.js",
     "test": "jest --watchAll --detectOpenHandles",
     "test:ci": "jest --runInBand --detectOpenHandles"
   },

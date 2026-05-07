@@ -92,6 +92,46 @@ app.get("/ready", (req, res) => {
   });
 });
 
+app.get("/debug-ip", (req, res) => {
+  if (config.isProduction) {
+    const debugToken = req.get("x-debug-token");
+    const expectedDebugToken = process.env.DEBUG_IP_TOKEN;
+
+    if (!expectedDebugToken || debugToken !== expectedDebugToken) {
+      return res.status(403).json({
+        success: false,
+        requestId: req.requestId,
+        message: "Forbidden",
+      });
+    }
+  }
+
+  res.status(200).json({
+    success: true,
+    requestId: req.requestId,
+    trustProxy: app.get("trust proxy"),
+    ip: req.ip,
+    ips: req.ips,
+    protocol: req.protocol,
+    secure: req.secure,
+    hostname: req.hostname,
+    socketRemoteAddress: req.socket.remoteAddress,
+    headers: {
+      host: req.get("host"),
+      forwarded: req.get("forwarded"),
+      xForwardedFor: req.get("x-forwarded-for"),
+      xForwardedHost: req.get("x-forwarded-host"),
+      xForwardedProto: req.get("x-forwarded-proto"),
+      xRealIp: req.get("x-real-ip"),
+      cfConnectingIp: req.get("cf-connecting-ip"),
+      cfRay: req.get("cf-ray"),
+      cfIpCountry: req.get("cf-ipcountry"),
+      trueClientIp: req.get("true-client-ip"),
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.use(
   cors({
     origin: (origin, callback) => {
