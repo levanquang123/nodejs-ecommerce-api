@@ -303,6 +303,13 @@ CLOUDINARY_API_SECRET=your_api_secret
 ONE_SIGNAL_APP_ID=your_app_id
 ONE_SIGNAL_REST_API_KEY=your_rest_api_key
 
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your_smtp_user
+SMTP_PASS=your_smtp_password
+EMAIL_FROM=QMarket <no-reply@your-domain.com>
+
 SENTRY_DSN=https://...
 SENTRY_RELEASE=store_api@1.0.0
 SENTRY_TRACES_SAMPLE_RATE=0.1
@@ -313,7 +320,7 @@ SENTRY_SEND_DEFAULT_PII=false
 Notes:
 
 - `MONGO_URL` and `ACCESS_TOKEN_SECRET` are required.
-- In production, Stripe, Cloudinary, and OneSignal variables are required.
+- In production, Stripe, Cloudinary, OneSignal, and SMTP variables are required.
 - `ACCESS_TOKEN_SECRET` should be at least 32 characters in production.
 - `CORS_ORIGINS` accepts a comma-separated allowlist.
 
