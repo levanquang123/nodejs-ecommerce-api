@@ -36,6 +36,15 @@ function createError(message, status) {
   return error;
 }
 
+function summarizeEmailDeliveryError(error) {
+  return {
+    message: error?.message,
+    code: error?.code,
+    responseCode: error?.responseCode,
+    command: error?.command,
+  };
+}
+
 function generateAccessToken(user, sessionId, clientType) {
   const payload = { id: user._id, role: user.role, tokenType: "access" };
   if (sessionId) payload.sid = sessionId;
@@ -199,7 +208,10 @@ async function createOrRefreshRegistrationVerification({
     delivery.catch(async (error) => {
       verification.lastSentAt = new Date(0);
       await verification.save().catch(() => {});
-      console.error("Email verification delivery failed:", error.message);
+      console.error(
+        "Email verification delivery failed:",
+        summarizeEmailDeliveryError(error)
+      );
     });
   }
 

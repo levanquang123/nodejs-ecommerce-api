@@ -16,6 +16,7 @@ const {
   paymentLimiter,
 } = require("./middleware/rateLimit");
 const paymentController = require("./controllers/payment.controller");
+const emailService = require("./services/email.service");
 const packageJson = require("./package.json");
 
 const app = express();
@@ -62,6 +63,7 @@ app.get("/health", (req, res) => {
     version: packageJson.version,
     status: "ok",
     environment: config.env,
+    email: emailService.getDiagnostics(),
     uptime: Math.round(process.uptime()),
     timestamp: new Date().toISOString(),
   });
