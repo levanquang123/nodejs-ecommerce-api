@@ -2,7 +2,9 @@ const request = require("supertest");
 const app = require("../app"); 
 const mongoose = require("mongoose");
 const crypto = require("crypto");
+const bcrypt = require("bcrypt");
 const User = require("../model/user");
+const EmailVerification = require("../model/emailVerification");
 
 function hashToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -12,6 +14,9 @@ describe("User Management System (User API)", () => {
   
   // Clean up test data before running the test suite
   beforeAll(async () => {
+    await EmailVerification.deleteMany({
+      email: /@example\.com$/,
+    });
     await User.deleteMany({
       email: {
         $in: [
@@ -26,6 +31,9 @@ describe("User Management System (User API)", () => {
 
   // Close DB connection and clean up after all tests are finished
   afterAll(async () => {
+    await EmailVerification.deleteMany({
+      email: /@example\.com$/,
+    });
     await User.deleteMany({
       email: {
         $in: [
@@ -51,8 +59,13 @@ describe("User Management System (User API)", () => {
 
       expect(res.statusCode).toEqual(201);
       expect(res.body.success).toBe(true);
-      expect(res.body.data).toHaveProperty("token");
-      expect(res.body.data.user.email).toBe("testuser_quang@example.com");
+      expect(res.body.data.verificationRequired).toBe(true);
+      expect(res.body.data.email).toBe("testuser_quang@example.com");
+
+      const user = await User.findOne({
+        email: "testuser_quang@example.com",
+      });
+      expect(user).toBeNull();
     });
 
     it("should fail if password is too short (less than 6 characters)", async () => {
@@ -96,13 +109,13 @@ describe("User Management System (User API)", () => {
 
       const firstRes = await request(app).post("/users/register").send(payload);
       expect(firstRes.statusCode).toEqual(201);
-      expect(firstRes.body.data.user.emailVerified).toBe(false);
+      expect(firstRes.body.data.verificationRequired).toBe(true);
 
       const retryRes = await request(app).post("/users/register").send(payload);
       expect(retryRes.statusCode).toEqual(201);
       expect(retryRes.body.success).toBe(true);
-      expect(retryRes.body.data).toHaveProperty("token");
-      expect(retryRes.body.data.user.email).toBe(payload.email);
+      expect(retryRes.body.data.verificationRequired).toBe(true);
+      expect(retryRes.body.data.email).toBe(payload.email);
     });
   });
 
@@ -116,14 +129,14 @@ describe("User Management System (User API)", () => {
         });
 
       expect(registerRes.statusCode).toEqual(201);
-      expect(registerRes.body.data.user.emailVerified).toBe(false);
+      expect(registerRes.body.data.verificationRequired).toBe(true);
 
-      await User.findOneAndUpdate(
+      await EmailVerification.findOneAndUpdate(
         { email: "verify_quang@example.com" },
         {
-          emailVerificationCodeHash: hashToken("123456"),
-          emailVerificationExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
-          emailVerificationFailedAttempts: 0,
+          codeHash: hashToken("123456"),
+          expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+          failedAttempts: 0,
         }
       );
 
@@ -140,15 +153,30 @@ describe("User Management System (User API)", () => {
 
       const verifiedUser = await User.findOne({
         email: "verify_quang@example.com",
-      }).select("+emailVerificationCodeHash");
+      });
 
       expect(verifiedUser.emailVerified).toBe(true);
-      expect(verifiedUser.emailVerificationCodeHash).toBeNull();
+      const verification = await EmailVerification.findOne({
+        email: "verify_quang@example.com",
+      });
+      expect(verification).toBeNull();
     });
   });
 
   // --- SECTION 2: AUTHENTICATION (LOGIN) ---
   describe("POST /users/login", () => {
+    beforeAll(async () => {
+      await User.findOneAndUpdate(
+        { email: "testuser_quang@example.com" },
+        {
+          email: "testuser_quang@example.com",
+          password: await bcrypt.hash("password123", 10),
+          emailVerified: true,
+        },
+        { upsert: true, new: true }
+      );
+    });
+
     it("should login successfully and return a Token", async () => {
       const res = await request(app)
         .post("/users/login")

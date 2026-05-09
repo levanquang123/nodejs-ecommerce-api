@@ -1,4 +1,5 @@
 const User = require("../model/user");
+const EmailVerification = require("../model/emailVerification");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
@@ -146,6 +147,50 @@ async function issueEmailVerificationCode(
   }
 
   return true;
+}
+
+async function createOrRefreshRegistrationVerification({
+  email,
+  passwordHash,
+  enforceCooldown = true,
+  skipIfCoolingDown = false,
+}) {
+  const existing = await EmailVerification.findOne({ email }).select(
+    "+passwordHash +codeHash"
+  );
+
+  if (
+    existing &&
+    enforceCooldown &&
+    existing.lastSentAt &&
+    Date.now() - existing.lastSentAt.getTime() <
+      EMAIL_VERIFICATION_RESEND_COOLDOWN_MS
+  ) {
+    if (skipIfCoolingDown) return existing;
+    throw createError("Please wait before requesting another code.", 429);
+  }
+
+  const code = generateVerificationCode();
+  const now = new Date();
+  const verification = existing || new EmailVerification({ email });
+  verification.passwordHash = passwordHash;
+  verification.codeHash = hashToken(code);
+  verification.type = "register";
+  verification.expiresAt = new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS);
+  verification.lastSentAt = now;
+  verification.failedAttempts = 0;
+  await verification.save();
+
+  emailService
+    .sendVerificationCode({
+      to: email,
+      code,
+    })
+    .catch((error) => {
+      console.error("Email verification delivery failed:", error.message);
+    });
+
+  return verification;
 }
 
 function normalizeClientType(clientType) {
@@ -342,52 +387,22 @@ exports.register = async ({ email, password }, clientType) => {
     );
   }
 
-  const exist = await User.findOne({ email }).select(
-    "+emailVerificationCodeHash +emailVerificationExpiresAt +emailVerificationLastSentAt +emailVerificationFailedAttempts +refreshTokenHash +refreshTokenExpiresAt +refreshTokenSessionExpiresAt +refreshTokenSessions"
-  );
+  const exist = await User.findOne({ email });
   if (exist) {
-    const isMatch = await bcrypt.compare(password, exist.password);
-    if (!exist.emailVerified && isMatch) {
-      await issueEmailVerificationCode(exist, {
-        skipIfCoolingDown: true,
-        suppressDeliveryErrors: true,
-        awaitDelivery: false,
-      });
-
-      const refreshedUser = await User.findById(exist._id).select(
-        "+refreshTokenHash +refreshTokenExpiresAt +refreshTokenSessionExpiresAt +refreshTokenSessions"
-      );
-
-      return await issueTokensForUser(refreshedUser, {
-        startNewSession: true,
-        clientType,
-      });
-    }
-
     throw createError("Email already exists", 409);
   }
 
-  const hashed = await bcrypt.hash(password, 10);
-
-  const user = await User.create({
+  const passwordHash = await bcrypt.hash(password, 10);
+  await createOrRefreshRegistrationVerification({
     email,
-    password: hashed,
+    passwordHash,
+    skipIfCoolingDown: true,
   });
 
-  await issueEmailVerificationCode(user, {
-    enforceCooldown: false,
-    suppressDeliveryErrors: true,
-    awaitDelivery: false,
-  });
-
-  const refreshedUser = await User.findById(user._id).select(
-    "+refreshTokenHash +refreshTokenExpiresAt +refreshTokenSessionExpiresAt +refreshTokenSessions"
-  );
-
-  return await issueTokensForUser(refreshedUser, {
-    startNewSession: true,
-    clientType,
-  });
+  return {
+    email,
+    verificationRequired: true,
+  };
 };
 
 exports.verifyEmail = async ({ email, code }) => {
@@ -398,41 +413,50 @@ exports.verifyEmail = async ({ email, code }) => {
     throw createError("Invalid or expired verification code.", 400);
   }
 
-  const user = await User.findOne({ email: normalizedEmail }).select(
-    "+emailVerificationCodeHash +emailVerificationExpiresAt +emailVerificationFailedAttempts"
+  const existingUser = await User.findOne({ email: normalizedEmail });
+  if (existingUser?.emailVerified) {
+    return sanitizeUser(existingUser);
+  }
+
+  const verification = await EmailVerification.findOne({
+    email: normalizedEmail,
+    type: "register",
+  }).select(
+    "+passwordHash +codeHash"
   );
 
-  if (!user) {
+  if (!verification) {
     throw createError("Invalid or expired verification code.", 400);
   }
 
-  if (user.emailVerified) {
-    return sanitizeUser(user);
-  }
-
-  const expiresAt = user.emailVerificationExpiresAt?.getTime() || 0;
-  if (!user.emailVerificationCodeHash || expiresAt < Date.now()) {
+  const expiresAt = verification.expiresAt?.getTime() || 0;
+  if (!verification.codeHash || expiresAt < Date.now()) {
     throw createError("Invalid or expired verification code.", 400);
   }
 
   if (
-    user.emailVerificationFailedAttempts >= EMAIL_VERIFICATION_MAX_ATTEMPTS
+    verification.failedAttempts >= EMAIL_VERIFICATION_MAX_ATTEMPTS
   ) {
     throw createError("Too many incorrect attempts. Request a new code.", 429);
   }
 
-  if (hashToken(normalizedCode) !== user.emailVerificationCodeHash) {
-    user.emailVerificationFailedAttempts += 1;
-    await user.save();
+  if (hashToken(normalizedCode) !== verification.codeHash) {
+    verification.failedAttempts += 1;
+    await verification.save();
     throw createError("Invalid or expired verification code.", 400);
   }
 
+  const user = existingUser || new User({
+    email: normalizedEmail,
+    password: verification.passwordHash,
+  });
   user.emailVerified = true;
   user.emailVerificationCodeHash = null;
   user.emailVerificationExpiresAt = null;
   user.emailVerificationLastSentAt = null;
   user.emailVerificationFailedAttempts = 0;
   await user.save();
+  await EmailVerification.deleteOne({ _id: verification._id });
 
   return sanitizeUser(user);
 };
@@ -444,15 +468,23 @@ exports.resendEmailVerification = async ({ email }) => {
     return;
   }
 
-  const user = await User.findOne({ email: normalizedEmail }).select(
-    "+emailVerificationCodeHash +emailVerificationExpiresAt +emailVerificationLastSentAt +emailVerificationFailedAttempts"
-  );
-
-  if (!user || user.emailVerified) {
+  const user = await User.findOne({ email: normalizedEmail });
+  if (user?.emailVerified) {
     return;
   }
 
-  await issueEmailVerificationCode(user);
+  const verification = await EmailVerification.findOne({
+    email: normalizedEmail,
+    type: "register",
+  }).select("+passwordHash +codeHash");
+
+  if (!verification) return;
+
+  await createOrRefreshRegistrationVerification({
+    email: normalizedEmail,
+    passwordHash: verification.passwordHash,
+    enforceCooldown: true,
+  });
 };
 
 exports.login = async ({ email, password }, clientType) => {
@@ -465,6 +497,9 @@ exports.login = async ({ email, password }, clientType) => {
 
   const isMatch = await bcrypt.compare(password, user.password);
   if (!isMatch) throw createError("Invalid email or password", 401);
+  if (!user.emailVerified) {
+    throw createError("Please verify your email before signing in.", 403);
+  }
 
   return await issueTokensForUser(user, {
     startNewSession: true,

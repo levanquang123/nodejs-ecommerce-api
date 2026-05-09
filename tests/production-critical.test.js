@@ -21,7 +21,12 @@ function unique(prefix) {
 }
 
 async function registerAndLogin(email, password = "password123") {
-  await request(app).post("/users/register").send({ email, password });
+  const hashed = await bcrypt.hash(password, 10);
+  await User.create({
+    email,
+    password: hashed,
+    emailVerified: true,
+  });
   const res = await request(app).post("/users/login").send({ email, password });
   return {
     user: res.body.data.user,
@@ -35,6 +40,7 @@ async function createAdmin(email, password = "password123") {
     email,
     password: hashed,
     role: "admin",
+    emailVerified: true,
   });
 
   const res = await request(app).post("/users/login").send({ email, password });
