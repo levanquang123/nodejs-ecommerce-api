@@ -18,6 +18,7 @@ describe("User Management System (User API)", () => {
           "testuser_quang@example.com",
           "quang_short@example.com",
           "verify_quang@example.com",
+          "retry_register_quang@example.com",
         ],
       },
     });
@@ -31,6 +32,7 @@ describe("User Management System (User API)", () => {
           "testuser_quang@example.com",
           "quang_short@example.com",
           "verify_quang@example.com",
+          "retry_register_quang@example.com",
         ],
       },
     });
@@ -63,6 +65,23 @@ describe("User Management System (User API)", () => {
 
       expect(res.statusCode).not.toBe(201);
       expect(res.body.success).toBe(false);
+    });
+
+    it("should resume an unverified registration with the same password", async () => {
+      const payload = {
+        email: "retry_register_quang@example.com",
+        password: "password123",
+      };
+
+      const firstRes = await request(app).post("/users/register").send(payload);
+      expect(firstRes.statusCode).toEqual(201);
+      expect(firstRes.body.data.user.emailVerified).toBe(false);
+
+      const retryRes = await request(app).post("/users/register").send(payload);
+      expect(retryRes.statusCode).toEqual(201);
+      expect(retryRes.body.success).toBe(true);
+      expect(retryRes.body.data).toHaveProperty("token");
+      expect(retryRes.body.data.user.email).toBe(payload.email);
     });
   });
 

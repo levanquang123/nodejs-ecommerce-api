@@ -82,7 +82,12 @@ function generateVerificationCode() {
 
 async function issueEmailVerificationCode(
   user,
-  { enforceCooldown = true, suppressDeliveryErrors = false } = {}
+  {
+    enforceCooldown = true,
+    skipIfCoolingDown = false,
+    suppressDeliveryErrors = false,
+    awaitDelivery = true,
+  } = {}
 ) {
   if (user.emailVerified) return false;
 
@@ -92,6 +97,7 @@ async function issueEmailVerificationCode(
     Date.now() - user.emailVerificationLastSentAt.getTime() <
       EMAIL_VERIFICATION_RESEND_COOLDOWN_MS
   ) {
+    if (skipIfCoolingDown) return false;
     throw createError("Please wait before requesting another code.", 429);
   }
 
@@ -102,11 +108,22 @@ async function issueEmailVerificationCode(
   user.emailVerificationFailedAttempts = 0;
   await user.save();
 
-  try {
-    await emailService.sendVerificationCode({
-      to: user.email,
-      code,
+  const delivery = emailService.sendVerificationCode({
+    to: user.email,
+    code,
+  });
+
+  if (!awaitDelivery) {
+    delivery.catch((error) => {
+      if (!suppressDeliveryErrors) {
+        console.error("Email verification delivery failed:", error.message);
+      }
     });
+    return true;
+  }
+
+  try {
+    await delivery;
   } catch (error) {
     if (!suppressDeliveryErrors) throw error;
     console.error("Email verification delivery failed:", error.message);
@@ -308,8 +325,30 @@ exports.register = async ({ email, password }, clientType) => {
     );
   }
 
-  const exist = await User.findOne({ email });
-  if (exist) throw createError("Email already exists", 409);
+  const exist = await User.findOne({ email }).select(
+    "+emailVerificationCodeHash +emailVerificationExpiresAt +emailVerificationLastSentAt +emailVerificationFailedAttempts +refreshTokenHash +refreshTokenExpiresAt +refreshTokenSessionExpiresAt +refreshTokenSessions"
+  );
+  if (exist) {
+    const isMatch = await bcrypt.compare(password, exist.password);
+    if (!exist.emailVerified && isMatch) {
+      await issueEmailVerificationCode(exist, {
+        skipIfCoolingDown: true,
+        suppressDeliveryErrors: true,
+        awaitDelivery: false,
+      });
+
+      const refreshedUser = await User.findById(exist._id).select(
+        "+refreshTokenHash +refreshTokenExpiresAt +refreshTokenSessionExpiresAt +refreshTokenSessions"
+      );
+
+      return await issueTokensForUser(refreshedUser, {
+        startNewSession: true,
+        clientType,
+      });
+    }
+
+    throw createError("Email already exists", 409);
+  }
 
   const hashed = await bcrypt.hash(password, 10);
 
@@ -321,9 +360,14 @@ exports.register = async ({ email, password }, clientType) => {
   await issueEmailVerificationCode(user, {
     enforceCooldown: false,
     suppressDeliveryErrors: true,
+    awaitDelivery: false,
   });
 
-  return await issueTokensForUser(user, {
+  const refreshedUser = await User.findById(user._id).select(
+    "+refreshTokenHash +refreshTokenExpiresAt +refreshTokenSessionExpiresAt +refreshTokenSessions"
+  );
+
+  return await issueTokensForUser(refreshedUser, {
     startNewSession: true,
     clientType,
   });

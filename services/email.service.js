@@ -20,6 +20,9 @@ function getTransporter() {
     host: config.email.host,
     port: config.email.port,
     secure: config.email.secure,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
     auth: {
       user: config.email.user,
       pass: config.email.pass,
@@ -30,6 +33,10 @@ function getTransporter() {
 }
 
 exports.sendVerificationCode = async ({ to, code }) => {
+  if (config.isTest) {
+    return;
+  }
+
   const mailer = getTransporter();
   if (!mailer) {
     if (!config.isProduction) {
