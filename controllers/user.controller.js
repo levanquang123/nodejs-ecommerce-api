@@ -58,13 +58,27 @@ exports.getById = asyncHandler(async (req, res) => {
 });
 
 exports.register = asyncHandler(async (req, res) => {
-  const data = await userService.register(req.body, req.headers["x-client-type"]);
+  try {
+    const data = await userService.register(req.body, req.headers["x-client-type"]);
 
-  res.status(201).json({
-    success: true,
-    message: "Verification code sent. Please check your email.",
-    data,
-  });
+    res.status(201).json({
+      success: true,
+      message: "Verification code sent. Please check your email.",
+      data,
+    });
+  } catch (error) {
+    if (
+      error?.code === "EAUTH" ||
+      error?.code === "ECONNECTION" ||
+      error?.code === "ETIMEDOUT" ||
+      error?.responseCode
+    ) {
+      error.status = 502;
+      error.message =
+        "Unable to send verification code right now. Please try again.";
+    }
+    throw error;
+  }
 });
 
 exports.login = asyncHandler(async (req, res) => {

@@ -154,6 +154,7 @@ async function createOrRefreshRegistrationVerification({
   passwordHash,
   enforceCooldown = true,
   skipIfCoolingDown = false,
+  awaitDelivery = true,
 }) {
   const existing = await EmailVerification.findOne({ email }).select(
     "+passwordHash +codeHash"
@@ -181,14 +182,24 @@ async function createOrRefreshRegistrationVerification({
   verification.failedAttempts = 0;
   await verification.save();
 
-  emailService
-    .sendVerificationCode({
-      to: email,
-      code,
-    })
-    .catch((error) => {
+  const delivery = emailService.sendVerificationCode({
+    to: email,
+    code,
+  });
+
+  if (awaitDelivery) {
+    try {
+      await delivery;
+    } catch (error) {
+      verification.lastSentAt = new Date(0);
+      await verification.save();
+      throw error;
+    }
+  } else {
+    delivery.catch((error) => {
       console.error("Email verification delivery failed:", error.message);
     });
+  }
 
   return verification;
 }
@@ -397,6 +408,7 @@ exports.register = async ({ email, password }, clientType) => {
     email,
     passwordHash,
     skipIfCoolingDown: true,
+    awaitDelivery: true,
   });
 
   return {
