@@ -71,6 +71,7 @@ exports.register = asyncHandler(async (req, res) => {
       error?.code === "EAUTH" ||
       error?.code === "ECONNECTION" ||
       error?.code === "ETIMEDOUT" ||
+      error?.code === "EMAIL_SEND_TIMEOUT" ||
       error?.responseCode
     ) {
       error.status = 502;

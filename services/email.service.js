@@ -2,6 +2,7 @@ const nodemailer = require("nodemailer");
 const config = require("../config/env");
 
 let transporter;
+const SEND_TIMEOUT_MS = 8000;
 
 function isConfigured() {
   return Boolean(
@@ -32,6 +33,21 @@ function getTransporter() {
   return transporter;
 }
 
+function withTimeout(promise, timeoutMs, message) {
+  let timeout;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeout = setTimeout(() => {
+      const error = new Error(message);
+      error.code = "EMAIL_SEND_TIMEOUT";
+      reject(error);
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    clearTimeout(timeout);
+  });
+}
+
 exports.sendVerificationCode = async ({ to, code }) => {
   if (config.isTest) {
     return;
@@ -46,18 +62,30 @@ exports.sendVerificationCode = async ({ to, code }) => {
     throw new Error("Email service is not configured.");
   }
 
-  await mailer.sendMail({
-    from: config.email.from,
-    to,
-    subject: "Verify your QMarket email",
-    text: `Your QMarket verification code is ${code}. It expires in 10 minutes.`,
-    html: `
-      <div style="font-family:Arial,sans-serif;line-height:1.5;color:#222">
-        <h2 style="margin:0 0 12px">Verify your email</h2>
-        <p>Use this code to finish setting up your QMarket account.</p>
-        <div style="font-size:28px;font-weight:700;letter-spacing:6px;margin:20px 0">${code}</div>
-        <p>This code expires in 10 minutes. If you did not request it, you can ignore this email.</p>
-      </div>
-    `,
-  });
+  try {
+    await withTimeout(
+      mailer.sendMail({
+        from: config.email.from,
+        to,
+        subject: "Verify your QMarket email",
+        text: `Your QMarket verification code is ${code}. It expires in 10 minutes.`,
+        html: `
+          <div style="font-family:Arial,sans-serif;line-height:1.5;color:#222">
+            <h2 style="margin:0 0 12px">Verify your email</h2>
+            <p>Use this code to finish setting up your QMarket account.</p>
+            <div style="font-size:28px;font-weight:700;letter-spacing:6px;margin:20px 0">${code}</div>
+            <p>This code expires in 10 minutes. If you did not request it, you can ignore this email.</p>
+          </div>
+        `,
+      }),
+      SEND_TIMEOUT_MS,
+      "Email delivery timed out."
+    );
+  } catch (error) {
+    if (error?.code === "EMAIL_SEND_TIMEOUT") {
+      transporter?.close?.();
+      transporter = null;
+    }
+    throw error;
+  }
 };
