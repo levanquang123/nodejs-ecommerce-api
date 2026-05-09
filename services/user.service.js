@@ -196,7 +196,9 @@ async function createOrRefreshRegistrationVerification({
       throw error;
     }
   } else {
-    delivery.catch((error) => {
+    delivery.catch(async (error) => {
+      verification.lastSentAt = new Date(0);
+      await verification.save().catch(() => {});
       console.error("Email verification delivery failed:", error.message);
     });
   }
@@ -408,7 +410,7 @@ exports.register = async ({ email, password }, clientType) => {
     email,
     passwordHash,
     skipIfCoolingDown: true,
-    awaitDelivery: true,
+    awaitDelivery: false,
   });
 
   return {
@@ -496,6 +498,7 @@ exports.resendEmailVerification = async ({ email }) => {
     email: normalizedEmail,
     passwordHash: verification.passwordHash,
     enforceCooldown: true,
+    awaitDelivery: false,
   });
 };
 

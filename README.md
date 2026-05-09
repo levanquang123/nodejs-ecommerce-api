@@ -309,6 +309,7 @@ SMTP_SECURE=false
 SMTP_USER=your_smtp_user
 SMTP_PASS=your_smtp_password
 EMAIL_FROM=QMarket <no-reply@your-domain.com>
+BREVO_API_KEY=xkeysib-your_brevo_transactional_api_key
 
 SENTRY_DSN=https://...
 SENTRY_RELEASE=store_api@1.0.0
@@ -320,7 +321,7 @@ SENTRY_SEND_DEFAULT_PII=false
 Notes:
 
 - `MONGO_URL` and `ACCESS_TOKEN_SECRET` are required.
-- In production, Stripe, Cloudinary, OneSignal, and SMTP variables are required.
+- In production, Stripe, Cloudinary, OneSignal, and `EMAIL_FROM` are required. For email delivery, set either `BREVO_API_KEY` or the SMTP variables.
 - `ACCESS_TOKEN_SECRET` should be at least 32 characters in production.
 - `CORS_ORIGINS` accepts a comma-separated allowlist.
 

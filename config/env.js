@@ -40,6 +40,7 @@ const schema = Joi.object({
   SMTP_USER: Joi.string().allow("", null),
   SMTP_PASS: Joi.string().allow("", null),
   EMAIL_FROM: Joi.string().allow("", null),
+  BREVO_API_KEY: Joi.string().allow("", null),
   SENTRY_DSN: Joi.string().uri().allow("", null),
   SENTRY_RELEASE: Joi.string().allow("", null),
   SENTRY_TRACES_SAMPLE_RATE: Joi.number().min(0).max(1).allow(null),
@@ -78,13 +79,13 @@ const productionOnlyEnv = [
   "CLOUDINARY_API_SECRET",
   "ONE_SIGNAL_APP_ID",
   "ONE_SIGNAL_REST_API_KEY",
-  "SMTP_HOST",
-  "SMTP_USER",
-  "SMTP_PASS",
   "EMAIL_FROM",
 ];
 
 const missingProductionEnv = productionOnlyEnv.filter((key) => !env[key]);
+const hasEmailProvider =
+  Boolean(env.BREVO_API_KEY) ||
+  Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS);
 
 if (!accessTokenSecret) {
   throw new Error("ACCESS_TOKEN_SECRET is required.");
@@ -97,6 +98,12 @@ if (isProduction && !env.REFRESH_TOKEN_SECRET) {
 if (isProduction && missingProductionEnv.length) {
   throw new Error(
     `Missing production environment variables: ${missingProductionEnv.join(", ")}`
+  );
+}
+
+if (isProduction && !hasEmailProvider) {
+  throw new Error(
+    "Missing email provider configuration: set BREVO_API_KEY or SMTP_HOST, SMTP_USER, and SMTP_PASS."
   );
 }
 
@@ -206,5 +213,6 @@ module.exports = {
     user: env.SMTP_USER,
     pass: env.SMTP_PASS,
     from: env.EMAIL_FROM,
+    brevoApiKey: env.BREVO_API_KEY,
   },
 };
