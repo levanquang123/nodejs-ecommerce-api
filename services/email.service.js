@@ -34,19 +34,6 @@ function getProviderName() {
   return "none";
 }
 
-function getDiagnostics() {
-  return {
-    configured: isConfigured(),
-    provider: getProviderName(),
-    hasBrevoApiKey: Boolean(config.email.brevoApiKey),
-    hasSmtp: isSmtpConfigured(),
-    fromConfigured: Boolean(config.email.from),
-    smtpHostConfigured: Boolean(config.email.host),
-    smtpUserConfigured: Boolean(config.email.user),
-    smtpPassConfigured: Boolean(config.email.pass),
-  };
-}
-
 function getTransporter() {
   if (!isSmtpConfigured()) return null;
   if (transporter) return transporter;
@@ -199,5 +186,3 @@ exports.sendVerificationCode = async ({ to, code }) => {
     throw error;
   }
 };
-
-exports.getDiagnostics = getDiagnostics;
