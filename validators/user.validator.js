@@ -10,6 +10,20 @@ exports.loginSchema = Joi.object({
   password: Joi.string().required(),
 });
 
+exports.verifyEmailSchema = Joi.object({
+  email: Joi.string().email().required(),
+  code: Joi.string()
+    .pattern(/^\d{6}$/)
+    .required()
+    .messages({
+      "string.pattern.base": "Verification code must be 6 digits.",
+    }),
+});
+
+exports.resendEmailVerificationSchema = Joi.object({
+  email: Joi.string().email().required(),
+});
+
 exports.refreshTokenSchema = Joi.object({
   refreshToken: Joi.string().required(),
 });

@@ -1,21 +1,38 @@
 const request = require("supertest");
 const app = require("../app"); 
 const mongoose = require("mongoose");
+const crypto = require("crypto");
 const User = require("../model/user");
+
+function hashToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
 
 describe("User Management System (User API)", () => {
   
   // Clean up test data before running the test suite
   beforeAll(async () => {
     await User.deleteMany({
-      email: { $in: ["testuser_quang@example.com", "quang_short@example.com"] },
+      email: {
+        $in: [
+          "testuser_quang@example.com",
+          "quang_short@example.com",
+          "verify_quang@example.com",
+        ],
+      },
     });
   });
 
   // Close DB connection and clean up after all tests are finished
   afterAll(async () => {
     await User.deleteMany({
-      email: { $in: ["testuser_quang@example.com", "quang_short@example.com"] },
+      email: {
+        $in: [
+          "testuser_quang@example.com",
+          "quang_short@example.com",
+          "verify_quang@example.com",
+        ],
+      },
     });
     await mongoose.connection.close();
   });
@@ -46,6 +63,47 @@ describe("User Management System (User API)", () => {
 
       expect(res.statusCode).not.toBe(201);
       expect(res.body.success).toBe(false);
+    });
+  });
+
+  describe("Email verification", () => {
+    it("should verify an email with a valid 6-digit code", async () => {
+      const registerRes = await request(app)
+        .post("/users/register")
+        .send({
+          email: "verify_quang@example.com",
+          password: "password123",
+        });
+
+      expect(registerRes.statusCode).toEqual(201);
+      expect(registerRes.body.data.user.emailVerified).toBe(false);
+
+      await User.findOneAndUpdate(
+        { email: "verify_quang@example.com" },
+        {
+          emailVerificationCodeHash: hashToken("123456"),
+          emailVerificationExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
+          emailVerificationFailedAttempts: 0,
+        }
+      );
+
+      const verifyRes = await request(app)
+        .post("/users/verify-email")
+        .send({
+          email: "verify_quang@example.com",
+          code: "123456",
+        });
+
+      expect(verifyRes.statusCode).toEqual(200);
+      expect(verifyRes.body.success).toBe(true);
+      expect(verifyRes.body.data.emailVerified).toBe(true);
+
+      const verifiedUser = await User.findOne({
+        email: "verify_quang@example.com",
+      }).select("+emailVerificationCodeHash");
+
+      expect(verifiedUser.emailVerified).toBe(true);
+      expect(verifiedUser.emailVerificationCodeHash).toBeNull();
     });
   });
 

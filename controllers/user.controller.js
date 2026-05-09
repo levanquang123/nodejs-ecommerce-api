@@ -77,6 +77,25 @@ exports.login = asyncHandler(async (req, res) => {
   });
 });
 
+exports.verifyEmail = asyncHandler(async (req, res) => {
+  const data = await userService.verifyEmail(req.body);
+
+  res.json({
+    success: true,
+    message: "Email verified successfully.",
+    data,
+  });
+});
+
+exports.resendEmailVerification = asyncHandler(async (req, res) => {
+  await userService.resendEmailVerification(req.body);
+
+  res.json({
+    success: true,
+    message: "Verification code sent if the email needs verification.",
+  });
+});
+
 exports.refreshToken = asyncHandler(async (req, res) => {
   const data = await userService.refreshToken({
     ...req.body,

@@ -150,6 +150,8 @@ app.use(
 app.use(apiLimiter);
 app.use("/users/login", authLimiter);
 app.use("/users/register", authLimiter);
+app.use("/users/verify-email", authLimiter);
+app.use("/users/resend-verification-code", authLimiter);
 app.use("/users/refresh-token", authLimiter);
 app.use("/payment/stripe", paymentLimiter);
 app.post(

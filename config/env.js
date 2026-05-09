@@ -34,6 +34,12 @@ const schema = Joi.object({
   CLOUDINARY_API_SECRET: Joi.string().allow("", null),
   ONE_SIGNAL_APP_ID: Joi.string().allow("", null),
   ONE_SIGNAL_REST_API_KEY: Joi.string().allow("", null),
+  SMTP_HOST: Joi.string().allow("", null),
+  SMTP_PORT: Joi.number().port().default(587),
+  SMTP_SECURE: Joi.boolean().truthy("true").falsy("false").default(false),
+  SMTP_USER: Joi.string().allow("", null),
+  SMTP_PASS: Joi.string().allow("", null),
+  EMAIL_FROM: Joi.string().allow("", null),
   SENTRY_DSN: Joi.string().uri().allow("", null),
   SENTRY_RELEASE: Joi.string().allow("", null),
   SENTRY_TRACES_SAMPLE_RATE: Joi.number().min(0).max(1).allow(null),
@@ -72,6 +78,10 @@ const productionOnlyEnv = [
   "CLOUDINARY_API_SECRET",
   "ONE_SIGNAL_APP_ID",
   "ONE_SIGNAL_REST_API_KEY",
+  "SMTP_HOST",
+  "SMTP_USER",
+  "SMTP_PASS",
+  "EMAIL_FROM",
 ];
 
 const missingProductionEnv = productionOnlyEnv.filter((key) => !env[key]);
@@ -188,5 +198,13 @@ module.exports = {
     secretKey: env.STRIPE_SKRT_KET_TST,
     publishableKey: env.STRIPE_PBLK_KET_TST,
     webhookSecret: env.STRIPE_WEBHOOK_SECRET,
+  },
+  email: {
+    host: env.SMTP_HOST,
+    port: env.SMTP_PORT,
+    secure: env.SMTP_SECURE,
+    user: env.SMTP_USER,
+    pass: env.SMTP_PASS,
+    from: env.EMAIL_FROM,
   },
 };

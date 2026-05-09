@@ -3,10 +3,14 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const config = require("../config/env");
+const emailService = require("./email.service");
 
 const MIN_PASSWORD_LENGTH = 6;
 const REFRESH_TOKEN_SESSION_LIMIT = 10;
 const REFRESH_TOKEN_ROTATION_GRACE_MS = 60 * 1000;
+const EMAIL_VERIFICATION_TTL_MS = 10 * 60 * 1000;
+const EMAIL_VERIFICATION_RESEND_COOLDOWN_MS = 60 * 1000;
+const EMAIL_VERIFICATION_MAX_ATTEMPTS = 5;
 const CLIENT_TYPES = new Set(["web_admin", "mobile_client"]);
 const ADDRESS_FIELDS = [
   "fullName",
@@ -55,6 +59,10 @@ function sanitizeUser(user) {
   const plain = user.toObject ? user.toObject() : user;
   const {
     password,
+    emailVerificationCodeHash,
+    emailVerificationExpiresAt,
+    emailVerificationLastSentAt,
+    emailVerificationFailedAttempts,
     refreshTokenHash,
     refreshTokenExpiresAt,
     refreshTokenSessionExpiresAt,
@@ -66,6 +74,45 @@ function sanitizeUser(user) {
 
 function hashToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function generateVerificationCode() {
+  return String(crypto.randomInt(100000, 1000000));
+}
+
+async function issueEmailVerificationCode(
+  user,
+  { enforceCooldown = true, suppressDeliveryErrors = false } = {}
+) {
+  if (user.emailVerified) return false;
+
+  if (
+    enforceCooldown &&
+    user.emailVerificationLastSentAt &&
+    Date.now() - user.emailVerificationLastSentAt.getTime() <
+      EMAIL_VERIFICATION_RESEND_COOLDOWN_MS
+  ) {
+    throw createError("Please wait before requesting another code.", 429);
+  }
+
+  const code = generateVerificationCode();
+  user.emailVerificationCodeHash = hashToken(code);
+  user.emailVerificationExpiresAt = new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS);
+  user.emailVerificationLastSentAt = new Date();
+  user.emailVerificationFailedAttempts = 0;
+  await user.save();
+
+  try {
+    await emailService.sendVerificationCode({
+      to: user.email,
+      code,
+    });
+  } catch (error) {
+    if (!suppressDeliveryErrors) throw error;
+    console.error("Email verification delivery failed:", error.message);
+  }
+
+  return true;
 }
 
 function normalizeClientType(clientType) {
@@ -271,10 +318,78 @@ exports.register = async ({ email, password }, clientType) => {
     password: hashed,
   });
 
+  await issueEmailVerificationCode(user, {
+    enforceCooldown: false,
+    suppressDeliveryErrors: true,
+  });
+
   return await issueTokensForUser(user, {
     startNewSession: true,
     clientType,
   });
+};
+
+exports.verifyEmail = async ({ email, code }) => {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const normalizedCode = String(code || "").replace(/\D/g, "");
+  if (!normalizedEmail || normalizedCode.length !== 6) {
+    throw createError("Invalid or expired verification code.", 400);
+  }
+
+  const user = await User.findOne({ email: normalizedEmail }).select(
+    "+emailVerificationCodeHash +emailVerificationExpiresAt +emailVerificationFailedAttempts"
+  );
+
+  if (!user) {
+    throw createError("Invalid or expired verification code.", 400);
+  }
+
+  if (user.emailVerified) {
+    return sanitizeUser(user);
+  }
+
+  const expiresAt = user.emailVerificationExpiresAt?.getTime() || 0;
+  if (!user.emailVerificationCodeHash || expiresAt < Date.now()) {
+    throw createError("Invalid or expired verification code.", 400);
+  }
+
+  if (
+    user.emailVerificationFailedAttempts >= EMAIL_VERIFICATION_MAX_ATTEMPTS
+  ) {
+    throw createError("Too many incorrect attempts. Request a new code.", 429);
+  }
+
+  if (hashToken(normalizedCode) !== user.emailVerificationCodeHash) {
+    user.emailVerificationFailedAttempts += 1;
+    await user.save();
+    throw createError("Invalid or expired verification code.", 400);
+  }
+
+  user.emailVerified = true;
+  user.emailVerificationCodeHash = null;
+  user.emailVerificationExpiresAt = null;
+  user.emailVerificationLastSentAt = null;
+  user.emailVerificationFailedAttempts = 0;
+  await user.save();
+
+  return sanitizeUser(user);
+};
+
+exports.resendEmailVerification = async ({ email }) => {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!normalizedEmail) {
+    return;
+  }
+
+  const user = await User.findOne({ email: normalizedEmail }).select(
+    "+emailVerificationCodeHash +emailVerificationExpiresAt +emailVerificationLastSentAt +emailVerificationFailedAttempts"
+  );
+
+  if (!user || user.emailVerified) {
+    return;
+  }
+
+  await issueEmailVerificationCode(user);
 };
 
 exports.login = async ({ email, password }, clientType) => {

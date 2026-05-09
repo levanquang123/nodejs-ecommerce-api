@@ -8,6 +8,8 @@ const admin = require("../middleware/admin");
 const {
   registerSchema,
   loginSchema,
+  verifyEmailSchema,
+  resendEmailVerificationSchema,
   updateUserSchema,
   toggleFavoriteSchema,
   updateAddressSchema,
@@ -18,6 +20,12 @@ const userController = require("../controllers/user.controller");
 // 1. Các route cố định (Static Routes) - PHẢI ĐỂ LÊN ĐẦU
 router.post("/register", validate(registerSchema), userController.register);
 router.post("/login", validate(loginSchema), userController.login);
+router.post("/verify-email", validate(verifyEmailSchema), userController.verifyEmail);
+router.post(
+  "/resend-verification-code",
+  validate(resendEmailVerificationSchema),
+  userController.resendEmailVerification
+);
 router.post("/refresh-token", userController.refreshToken);
 
 // Các route cần auth
