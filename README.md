@@ -303,11 +303,6 @@ CLOUDINARY_API_SECRET=your_api_secret
 ONE_SIGNAL_APP_ID=your_app_id
 ONE_SIGNAL_REST_API_KEY=your_rest_api_key
 
-SMTP_HOST=smtp.example.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=your_smtp_user
-SMTP_PASS=your_smtp_password
 EMAIL_FROM=QMarket <no-reply@your-domain.com>
 BREVO_API_KEY=xkeysib-your_brevo_transactional_api_key
 
