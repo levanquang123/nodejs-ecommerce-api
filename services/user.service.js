@@ -11,6 +11,13 @@ const REFRESH_TOKEN_ROTATION_GRACE_MS = 60 * 1000;
 const EMAIL_VERIFICATION_TTL_MS = 10 * 60 * 1000;
 const EMAIL_VERIFICATION_RESEND_COOLDOWN_MS = 60 * 1000;
 const EMAIL_VERIFICATION_MAX_ATTEMPTS = 5;
+const RESERVED_EMAIL_DOMAINS = new Set([
+  "example.com",
+  "example.net",
+  "example.org",
+  "test.com",
+  "invalid.com",
+]);
 const CLIENT_TYPES = new Set(["web_admin", "mobile_client"]);
 const ADDRESS_FIELDS = [
   "fullName",
@@ -78,6 +85,15 @@ function hashToken(token) {
 
 function generateVerificationCode() {
   return String(crypto.randomInt(100000, 1000000));
+}
+
+function assertDeliverableEmail(email) {
+  if (config.isTest) return;
+
+  const domain = String(email || "").split("@").pop()?.toLowerCase();
+  if (!domain || RESERVED_EMAIL_DOMAINS.has(domain)) {
+    throw createError("Please use a real email address to receive the verification code.", 400);
+  }
 }
 
 async function issueEmailVerificationCode(
@@ -318,6 +334,7 @@ exports.getById = async (id, currentUser) => {
 
 exports.register = async ({ email, password }, clientType) => {
   email = email.trim().toLowerCase();
+  assertDeliverableEmail(email);
 
   if (password.length < MIN_PASSWORD_LENGTH) {
     throw new Error(
@@ -375,6 +392,7 @@ exports.register = async ({ email, password }, clientType) => {
 
 exports.verifyEmail = async ({ email, code }) => {
   const normalizedEmail = String(email || "").trim().toLowerCase();
+  assertDeliverableEmail(normalizedEmail);
   const normalizedCode = String(code || "").replace(/\D/g, "");
   if (!normalizedEmail || normalizedCode.length !== 6) {
     throw createError("Invalid or expired verification code.", 400);
@@ -421,6 +439,7 @@ exports.verifyEmail = async ({ email, code }) => {
 
 exports.resendEmailVerification = async ({ email }) => {
   const normalizedEmail = String(email || "").trim().toLowerCase();
+  assertDeliverableEmail(normalizedEmail);
   if (!normalizedEmail) {
     return;
   }

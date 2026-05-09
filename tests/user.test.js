@@ -67,6 +67,27 @@ describe("User Management System (User API)", () => {
       expect(res.body.success).toBe(false);
     });
 
+    it("should reject reserved email domains outside the test environment guard", async () => {
+      const config = require("../config/env");
+      const originalIsTest = config.isTest;
+      let res;
+      try {
+        config.isTest = false;
+        res = await request(app)
+          .post("/users/register")
+          .send({
+            email: "reserved@example.com",
+            password: "password123",
+          });
+      } finally {
+        config.isTest = originalIsTest;
+      }
+
+      expect(res.statusCode).toEqual(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toContain("real email address");
+    });
+
     it("should resume an unverified registration with the same password", async () => {
       const payload = {
         email: "retry_register_quang@example.com",
