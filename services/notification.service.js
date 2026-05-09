@@ -47,6 +47,46 @@ exports.sendNotification = async ({ title, description, imageUrl }) => {
   return newNotification;
 };
 
+exports.sendToExternalUser = async ({
+  externalId,
+  title,
+  description,
+  imageUrl,
+  data,
+  idempotencyKey,
+}) => {
+  assertOneSignalConfigured();
+
+  const normalizedExternalId = String(externalId || "").trim();
+  if (!normalizedExternalId) return null;
+
+  const notification = new OneSignal.Notification();
+  notification.app_id = APP_ID;
+  notification.contents = { en: description };
+  notification.headings = { en: title };
+  notification.include_aliases = {
+    external_id: [normalizedExternalId],
+  };
+  notification.target_channel = "push";
+
+  if (data) {
+    notification.data = data;
+  }
+
+  if (idempotencyKey) {
+    notification.idempotency_key = idempotencyKey;
+  }
+
+  if (imageUrl) {
+    notification.big_picture = imageUrl;
+    notification.adm_big_picture = imageUrl;
+    notification.chrome_web_image = imageUrl;
+    notification.ios_attachments = { id1: imageUrl };
+  }
+
+  return await client.createNotification(notification);
+};
+
 exports.trackNotification = async (id) => {
   assertOneSignalConfigured();
 

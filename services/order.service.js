@@ -1,8 +1,10 @@
 const mongoose = require("mongoose");
+const Sentry = require("@sentry/node");
 const Order = require("../model/order");
 const PaymentSession = require("../model/paymentSession");
 const Product = require("../model/product");
 const Coupon = require("../model/couponCode");
+const notificationService = require("./notification.service");
 const orderPopulate = [
   { path: "couponCode", select: "_id couponCode discountType discountAmount" },
   { path: "userID", select: "_id email" },
@@ -30,6 +32,33 @@ async function findOrderById(id) {
   return await Order.findById(id)
     .populate(orderPopulate[0])
     .populate(orderPopulate[1]);
+}
+
+async function notifyOrderCreated(order) {
+  const userId = order?.userID?._id || order?.userID;
+  const orderId = order?._id;
+  if (!userId || !orderId) return;
+
+  try {
+    await notificationService.sendToExternalUser({
+      externalId: userId.toString(),
+      title: "Order placed successfully",
+      description: `Your order #${orderId.toString().slice(-6).toUpperCase()} has been received.`,
+      idempotencyKey: `order-created-${orderId}`,
+      data: {
+        type: "order_created",
+        orderId: orderId.toString(),
+      },
+    });
+  } catch (error) {
+    Sentry.withScope((scope) => {
+      scope.setTag("service", "api");
+      scope.setTag("notification_type", "order_created");
+      scope.setTag("order_id", orderId.toString());
+      scope.setTag("user_id", userId.toString());
+      Sentry.captureException(error);
+    });
+  }
 }
 
 function toAttributeSnapshot(attributes) {
@@ -354,7 +383,9 @@ exports.create = async (userID, body, options = {}) => {
 
     await session.commitTransaction();
     session.endSession();
-    return await findOrderById(order._id);
+    const createdOrder = await findOrderById(order._id);
+    await notifyOrderCreated(createdOrder);
+    return createdOrder;
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
@@ -472,6 +503,7 @@ exports.markPaymentSucceeded = async (paymentIntentId) => {
 
       await session.commitTransaction();
       session.endSession();
+      await notifyOrderCreated(order);
       return order;
     }
 
@@ -495,6 +527,7 @@ exports.markPaymentSucceeded = async (paymentIntentId) => {
 
     await session.commitTransaction();
     session.endSession();
+    await notifyOrderCreated(order);
     return order;
   } catch (error) {
     await session.abortTransaction();
