@@ -245,12 +245,7 @@ async function issueTokensForSession(
   const normalizedClientType = normalizeClientType(clientType);
 
   if (startNewSession && normalizedClientType === "web_admin") {
-    user.refreshTokenSessions = user.refreshTokenSessions.filter(
-      (session) =>
-        session.clientType &&
-        session.clientType !== "unknown" &&
-        session.clientType !== "web_admin"
-    );
+    user.refreshTokenSessions = [];
   }
 
   limitRefreshTokenSessions(user);
@@ -336,6 +331,22 @@ exports.getCurrentUserProfile = async (userId) => {
 
 function isAdmin(user) {
   return user && (user.role === "admin" || user.role === "superadmin");
+}
+
+function assertClientRoleAllowed(user, clientType) {
+  const normalizedClientType = normalizeClientType(clientType);
+
+  if (normalizedClientType === "web_admin" && !isAdmin(user)) {
+    throw createError("Only admin accounts can sign in to the admin dashboard.", 403);
+  }
+
+  if (normalizedClientType === "mobile_client" && isAdmin(user)) {
+    throw createError("Admin accounts cannot sign in to the customer app.", 403);
+  }
+
+  if (normalizedClientType === "unknown" && isAdmin(user)) {
+    throw createError("Admin accounts must sign in through the admin dashboard.", 403);
+  }
 }
 
 exports.getById = async (id, currentUser) => {
@@ -467,6 +478,7 @@ exports.login = async ({ email, password }, clientType) => {
   if (!user.emailVerified) {
     throw createError("Please verify your email before signing in.", 403);
   }
+  assertClientRoleAllowed(user, clientType);
 
   return await issueTokensForUser(user, {
     startNewSession: true,

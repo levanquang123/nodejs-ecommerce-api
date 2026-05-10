@@ -24,6 +24,8 @@ describe("User Management System (User API)", () => {
           "quang_short@example.com",
           "verify_quang@example.com",
           "retry_register_quang@example.com",
+          "admin_session_quang@example.com",
+          "admin_client_guard_quang@example.com",
         ],
       },
     });
@@ -41,6 +43,8 @@ describe("User Management System (User API)", () => {
           "quang_short@example.com",
           "verify_quang@example.com",
           "retry_register_quang@example.com",
+          "admin_session_quang@example.com",
+          "admin_client_guard_quang@example.com",
         ],
       },
     });
@@ -277,11 +281,22 @@ describe("User Management System (User API)", () => {
     });
 
     it("should keep only one active web_admin refresh session", async () => {
+      await User.findOneAndUpdate(
+        { email: "admin_session_quang@example.com" },
+        {
+          email: "admin_session_quang@example.com",
+          password: await bcrypt.hash("password123", 10),
+          role: "admin",
+          emailVerified: true,
+        },
+        { upsert: true, new: true }
+      );
+
       const firstLoginRes = await request(app)
         .post("/users/login")
         .set("x-client-type", "web_admin")
         .send({
-          email: "testuser_quang@example.com",
+          email: "admin_session_quang@example.com",
           password: "password123"
         });
 
@@ -293,7 +308,7 @@ describe("User Management System (User API)", () => {
         .post("/users/login")
         .set("x-client-type", "web_admin")
         .send({
-          email: "testuser_quang@example.com",
+          email: "admin_session_quang@example.com",
           password: "password123"
         });
 
@@ -318,6 +333,48 @@ describe("User Management System (User API)", () => {
         .set("Authorization", `Bearer ${firstAccessToken}`);
 
       expect(revokedAccessRes.statusCode).toEqual(401);
+    });
+
+    it("should reject role/client login mismatches", async () => {
+      const userAsAdminRes = await request(app)
+        .post("/users/login")
+        .set("x-client-type", "web_admin")
+        .send({
+          email: "testuser_quang@example.com",
+          password: "password123"
+        });
+
+      expect(userAsAdminRes.statusCode).toEqual(403);
+
+      await User.findOneAndUpdate(
+        { email: "admin_client_guard_quang@example.com" },
+        {
+          email: "admin_client_guard_quang@example.com",
+          password: await bcrypt.hash("password123", 10),
+          role: "admin",
+          emailVerified: true,
+        },
+        { upsert: true, new: true }
+      );
+
+      const adminAsMobileRes = await request(app)
+        .post("/users/login")
+        .set("x-client-type", "mobile_client")
+        .send({
+          email: "admin_client_guard_quang@example.com",
+          password: "password123"
+        });
+
+      expect(adminAsMobileRes.statusCode).toEqual(403);
+
+      const adminWithoutClientTypeRes = await request(app)
+        .post("/users/login")
+        .send({
+          email: "admin_client_guard_quang@example.com",
+          password: "password123"
+        });
+
+      expect(adminWithoutClientTypeRes.statusCode).toEqual(403);
     });
 
     it("should allow mobile_client sessions to coexist", async () => {

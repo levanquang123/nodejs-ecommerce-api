@@ -27,7 +27,10 @@ async function registerAndLogin(email, password = "password123") {
     password: hashed,
     emailVerified: true,
   });
-  const res = await request(app).post("/users/login").send({ email, password });
+  const res = await request(app)
+    .post("/users/login")
+    .set("x-client-type", "mobile_client")
+    .send({ email, password });
   return {
     user: res.body.data.user,
     token: res.body.data.accessToken,
@@ -43,7 +46,10 @@ async function createAdmin(email, password = "password123") {
     emailVerified: true,
   });
 
-  const res = await request(app).post("/users/login").send({ email, password });
+  const res = await request(app)
+    .post("/users/login")
+    .set("x-client-type", "web_admin")
+    .send({ email, password });
   return {
     user: res.body.data.user,
     token: res.body.data.accessToken,
