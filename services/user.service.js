@@ -76,10 +76,6 @@ function sanitizeUser(user) {
   const plain = user.toObject ? user.toObject() : user;
   const {
     password,
-    emailVerificationCodeHash,
-    emailVerificationExpiresAt,
-    emailVerificationLastSentAt,
-    emailVerificationFailedAttempts,
     refreshTokenHash,
     refreshTokenExpiresAt,
     refreshTokenSessionExpiresAt,
@@ -104,58 +100,6 @@ function assertDeliverableEmail(email) {
   if (!domain || RESERVED_EMAIL_DOMAINS.has(domain)) {
     throw createError("Please use a real email address to receive the verification code.", 400);
   }
-}
-
-async function issueEmailVerificationCode(
-  user,
-  {
-    enforceCooldown = true,
-    skipIfCoolingDown = false,
-    suppressDeliveryErrors = false,
-    awaitDelivery = true,
-  } = {}
-) {
-  if (user.emailVerified) return false;
-
-  if (
-    enforceCooldown &&
-    user.emailVerificationLastSentAt &&
-    Date.now() - user.emailVerificationLastSentAt.getTime() <
-      EMAIL_VERIFICATION_RESEND_COOLDOWN_MS
-  ) {
-    if (skipIfCoolingDown) return false;
-    throw createError("Please wait before requesting another code.", 429);
-  }
-
-  const code = generateVerificationCode();
-  user.emailVerificationCodeHash = hashToken(code);
-  user.emailVerificationExpiresAt = new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS);
-  user.emailVerificationLastSentAt = new Date();
-  user.emailVerificationFailedAttempts = 0;
-  await user.save();
-
-  const delivery = emailService.sendVerificationCode({
-    to: user.email,
-    code,
-  });
-
-  if (!awaitDelivery) {
-    delivery.catch((error) => {
-      if (!suppressDeliveryErrors) {
-        console.error("Email verification delivery failed:", error.message);
-      }
-    });
-    return true;
-  }
-
-  try {
-    await delivery;
-  } catch (error) {
-    if (!suppressDeliveryErrors) throw error;
-    console.error("Email verification delivery failed:", error.message);
-  }
-
-  return true;
 }
 
 async function createOrRefreshRegistrationVerification({
@@ -477,10 +421,6 @@ exports.verifyEmail = async ({ email, code }) => {
     password: verification.passwordHash,
   });
   user.emailVerified = true;
-  user.emailVerificationCodeHash = null;
-  user.emailVerificationExpiresAt = null;
-  user.emailVerificationLastSentAt = null;
-  user.emailVerificationFailedAttempts = 0;
   await user.save();
   await EmailVerification.deleteOne({ _id: verification._id });
 
