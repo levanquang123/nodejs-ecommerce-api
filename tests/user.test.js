@@ -454,6 +454,7 @@ describe("User Management System (User API)", () => {
 
       const adminAccessToken = adminLoginRes.body.data.accessToken;
       const adminRefreshToken = adminLoginRes.body.data.refreshToken;
+      const clientAccessToken = clientLoginRes.body.data.accessToken;
       const clientRefreshToken = clientLoginRes.body.data.refreshToken;
 
       const logoutRes = await request(app)
@@ -469,12 +470,24 @@ describe("User Management System (User API)", () => {
 
       expect(adminRefreshRes.statusCode).toEqual(401);
 
+      const adminAccessRes = await request(app)
+        .get("/users/me")
+        .set("Authorization", `Bearer ${adminAccessToken}`);
+
+      expect(adminAccessRes.statusCode).toEqual(401);
+
       const clientRefreshRes = await request(app)
         .post("/users/refresh-token")
         .send({ refreshToken: clientRefreshToken });
 
       expect(clientRefreshRes.statusCode).toEqual(200);
       expect(clientRefreshRes.body.success).toBe(true);
+
+      const clientAccessRes = await request(app)
+        .get("/users/me")
+        .set("Authorization", `Bearer ${clientAccessToken}`);
+
+      expect(clientAccessRes.statusCode).toEqual(200);
     });
   });
 
