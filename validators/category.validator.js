@@ -5,5 +5,5 @@ exports.createCategorySchema = Joi.object({
 });
 
 exports.updateCategorySchema = Joi.object({
-  name: Joi.string().min(2).optional(),
+  name: Joi.string().min(2).required(),
 });

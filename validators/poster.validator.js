@@ -5,5 +5,5 @@ exports.createPosterSchema = Joi.object({
 });
 
 exports.updatePosterSchema = Joi.object({
-  posterName: Joi.string().min(2).optional(),
+  posterName: Joi.string().min(2).required(),
 });
