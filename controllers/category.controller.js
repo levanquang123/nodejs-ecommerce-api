@@ -1,22 +1,5 @@
 const asyncHandler = require("express-async-handler");
 const categoryService = require("../services/category.service");
-const multer = require("multer");
-const { uploadCategory } = require("../uploadFile");
-
-function handleMulterError(err, req, res) {
-  if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
-    return res.status(400).json({
-      success: false,
-      requestId: req.requestId,
-      message: "File size too large (max 5MB).",
-    });
-  }
-  return res.status(400).json({
-    success: false,
-    requestId: req.requestId,
-    message: err.message || "Upload failed.",
-  });
-}
 
 exports.getAll = asyncHandler(async (req, res) => {
   const data = await categoryService.getAll();
@@ -46,51 +29,35 @@ exports.getById = asyncHandler(async (req, res) => {
   });
 });
 
-exports.create = (req, res, next) => {
-  uploadCategory.single("img")(req, res, async function (err) {
-    if (err) return handleMulterError(err, req, res);
+exports.create = asyncHandler(async (req, res) => {
+  const image = req.file ? req.file.path : "no_url";
 
-    try {
-      const image = req.file ? req.file.path : "no_url";
-
-      const data = await categoryService.create({
-        name: req.body.name,
-        image,
-      });
-
-      res.status(201).json({
-        success: true,
-        message: "Category created successfully.",
-        data,
-      });
-    } catch (error) {
-      next(error);
-    }
+  const data = await categoryService.create({
+    name: req.body.name,
+    image,
   });
-};
 
-exports.update = (req, res, next) => {
-  uploadCategory.single("img")(req, res, async function (err) {
-    if (err) return handleMulterError(err, req, res);
-
-    try {
-      const image = req.file ? req.file.path : null;
-
-      const data = await categoryService.update(req.params.id, {
-        name: req.body.name,
-        image,
-      });
-
-      res.json({
-        success: true,
-        message: "Category updated successfully.",
-        data,
-      });
-    } catch (error) {
-      next(error);
-    }
+  res.status(201).json({
+    success: true,
+    message: "Category created successfully.",
+    data,
   });
-};
+});
+
+exports.update = asyncHandler(async (req, res) => {
+  const image = req.file ? req.file.path : null;
+
+  const data = await categoryService.update(req.params.id, {
+    name: req.body.name,
+    image,
+  });
+
+  res.json({
+    success: true,
+    message: "Category updated successfully.",
+    data,
+  });
+});
 
 exports.remove = asyncHandler(async (req, res) => {
   await categoryService.delete(req.params.id);

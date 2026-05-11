@@ -9,6 +9,7 @@ const User = require("../model/user");
 const Category = require("../model/category");
 const SubCategory = require("../model/subCategory");
 const Product = require("../model/product");
+const Poster = require("../model/poster");
 const Coupon = require("../model/couponCode");
 const Order = require("../model/order");
 const PaymentSession = require("../model/paymentSession");
@@ -91,6 +92,7 @@ async function cleanupTestData() {
     Order.deleteMany({ userID: { $in: testUserIds } }),
     PaymentSession.deleteMany({ userID: { $in: testUserIds } }),
     Product.deleteMany({ name: /^product_fixture_/ }),
+    Poster.deleteMany({ posterName: /^poster_fixture_/ }),
     Coupon.deleteMany({ couponCode: /^coupon_fixture_/ }),
     SubCategory.deleteMany({ name: /^subcategory_fixture_/ }),
     Category.deleteMany({ name: /^category_fixture_/ }),
@@ -177,6 +179,36 @@ describe("Production-critical API behavior", () => {
     expect(duplicateRes.statusCode).toBe(409);
     expect(duplicateRes.body.success).toBe(false);
     expect(duplicateRes.body.message).toContain("Category already exists");
+  });
+
+  it("rejects category names shorter than two characters", async () => {
+    const admin = await createAdmin(
+      `category-validator-admin-${unique("id")}@critical-test.example.com`
+    );
+
+    const res = await request(app)
+      .post("/categories")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .field("name", "a");
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toContain("at least 2 characters");
+  });
+
+  it("rejects poster names shorter than two characters", async () => {
+    const admin = await createAdmin(
+      `poster-validator-admin-${unique("id")}@critical-test.example.com`
+    );
+
+    const res = await request(app)
+      .post("/posters")
+      .set("Authorization", `Bearer ${admin.token}`)
+      .field("posterName", "a");
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toContain("at least 2 characters");
   });
 
   it("creates COD orders with token user and server-side prices only", async () => {

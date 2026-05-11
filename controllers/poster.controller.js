@@ -30,7 +30,10 @@ exports.getById = asyncHandler(async (req, res) => {
 });
 
 exports.create = asyncHandler(async (req, res) => {
-  const data = await posterService.create(req);
+  const data = await posterService.create({
+    posterName: req.body.posterName,
+    imageUrl: req.file ? req.file.path : "no_url",
+  });
 
   res.status(201).json({
     success: true,
@@ -40,7 +43,10 @@ exports.create = asyncHandler(async (req, res) => {
 });
 
 exports.update = asyncHandler(async (req, res) => {
-  const data = await posterService.update(req.params.id, req);
+  const data = await posterService.update(req.params.id, {
+    posterName: req.body.posterName,
+    imageUrl: req.file ? req.file.path : null,
+  });
 
   res.json({
     success: true,
