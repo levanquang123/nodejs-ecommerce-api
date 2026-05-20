@@ -17,7 +17,7 @@ const {
 
 const userController = require("../controllers/user.controller");
 
-// 1. Các route cố định (Static Routes) - PHẢI ĐỂ LÊN ĐẦU
+// Static routes must stay above dynamic "/:id" routes.
 router.post("/register", validate(registerSchema), userController.register);
 router.post("/login", validate(loginSchema), userController.login);
 router.post("/verify-email", validate(verifyEmailSchema), userController.verifyEmail);
@@ -28,22 +28,22 @@ router.post(
 );
 router.post("/refresh-token", userController.refreshToken);
 
-// Các route cần auth
+// Authenticated account routes.
 router.get("/me", auth, userController.getMe);
 router.put("/me/address", auth, validate(updateAddressSchema), userController.updateMyAddress);
 router.post("/logout", auth, userController.logout);
 
-// QUAN TRỌNG: Chuyển favorites lên trên :id
-router.get("/favorites", auth, userController.getFavoriteProducts); 
+// Favorites routes must stay above "/:id".
+router.get("/favorites", auth, userController.getFavoriteProducts);
 
 router.post(
   "/favorite",
   auth,
-  validate(toggleFavoriteSchema), 
+  validate(toggleFavoriteSchema),
   userController.toggleFavorite
 );
 
-// 2. Các route có chứa tham số (Dynamic Routes) - PHẢI ĐỂ DƯỚI CÙNG
+// Dynamic routes belong last so they do not swallow static paths.
 router.get("/", auth, admin, userController.getAll);
 router.get("/:id", auth, userController.getById);
 
@@ -56,5 +56,4 @@ router.put(
 
 router.delete("/:id", auth, userController.remove);
 
-// 3. Export router sau khi đã định nghĩa xong tất cả
 module.exports = router;

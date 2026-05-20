@@ -184,7 +184,7 @@ exports.getFavoriteProducts = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    message: "Get favorite prodocuts successfully.",
+    message: "Favorite products retrieved successfully.",
     data: data,
   });
 });

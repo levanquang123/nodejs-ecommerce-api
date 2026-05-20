@@ -220,9 +220,10 @@ describe("User Management System (User API)", () => {
 
       const user = await User.findOne({
         email: "testuser_quang@example.com",
-      }).select("+refreshTokenSessionExpiresAt");
+      }).select("+refreshTokenSessions");
       const previousSessionExpiry = new Date(Date.now() + 30 * 60 * 1000);
-      user.refreshTokenSessionExpiresAt = previousSessionExpiry;
+      user.refreshTokenSessions[0].refreshTokenSessionExpiresAt =
+        previousSessionExpiry;
       await user.save();
 
       const refreshRes = await request(app)
@@ -234,11 +235,12 @@ describe("User Management System (User API)", () => {
 
       const refreshedUser = await User.findOne({
         email: "testuser_quang@example.com",
-      }).select("+refreshTokenSessionExpiresAt");
+      }).select("+refreshTokenSessions");
 
-      expect(refreshedUser.refreshTokenSessionExpiresAt.getTime()).toBeGreaterThan(
-        previousSessionExpiry.getTime()
-      );
+      const refreshedSession = refreshedUser.refreshTokenSessions[0];
+      expect(
+        refreshedSession.refreshTokenSessionExpiresAt.getTime()
+      ).toBeGreaterThan(previousSessionExpiry.getTime());
     });
 
     it("should return 401 when refresh token is missing", async () => {

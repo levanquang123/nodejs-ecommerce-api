@@ -9,6 +9,7 @@
   "scripts": {
     "start": "node index.js",
     "seed:demo": "node scripts/seed-demo-data.js",
+    "migrate:remove-legacy-refresh-fields": "node scripts/remove-legacy-refresh-fields.js",
     "test": "jest --watchAll --detectOpenHandles",
     "test:ci": "jest --runInBand --detectOpenHandles"
   },
