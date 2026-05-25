@@ -15,6 +15,7 @@ const {
   authLimiter,
   paymentLimiter,
 } = require("./middleware/rateLimit");
+const { checkRedisReady } = require("./services/redis.service");
 const paymentController = require("./controllers/payment.controller");
 const packageJson = require("./package.json");
 
@@ -67,8 +68,12 @@ app.get("/health", (req, res) => {
   });
 });
 
-app.get("/ready", (req, res) => {
+app.get("/ready", async (req, res) => {
   const isDatabaseReady = mongoose.connection.readyState === 1;
+  const redisReady = await checkRedisReady();
+  const isRedisRequired = config.isProduction;
+  const isRedisReady = !isRedisRequired || redisReady.ready;
+  const isReady = isDatabaseReady && isRedisReady;
   const databaseStatusByState = {
     0: "disconnected",
     1: "connected",
@@ -76,16 +81,17 @@ app.get("/ready", (req, res) => {
     3: "disconnecting",
   };
 
-  res.status(isDatabaseReady ? 200 : 503).json({
-    success: isDatabaseReady,
+  res.status(isReady ? 200 : 503).json({
+    success: isReady,
     service: packageJson.name,
     version: packageJson.version,
-    status: isDatabaseReady ? "ready" : "not_ready",
+    status: isReady ? "ready" : "not_ready",
     environment: config.env,
     checks: {
       api: "ok",
       database:
         databaseStatusByState[mongoose.connection.readyState] || "unknown",
+      redis: redisReady.status,
     },
     uptime: Math.round(process.uptime()),
     timestamp: new Date().toISOString(),
@@ -95,7 +101,7 @@ app.get("/ready", (req, res) => {
 app.get("/debug-ip", (req, res) => {
   if (config.isProduction) {
     const debugToken = req.get("x-debug-token");
-    const expectedDebugToken = process.env.DEBUG_IP_TOKEN;
+    const expectedDebugToken = config.debugIpToken;
 
     if (!expectedDebugToken || debugToken !== expectedDebugToken) {
       return res.status(403).json({

@@ -1,10 +1,42 @@
 const rateLimit = require("express-rate-limit");
 const config = require("../config/env");
+const { RedisStore } = require("rate-limit-redis");
+const { redis, hasRedisConfig } = require("../services/redis.service");
+
+async function sendUpstashCommand(...command) {
+  const [name, ...args] = command;
+  const normalizedName = String(name).toLowerCase();
+
+  switch (normalizedName) {
+    case "script":
+      if (String(args[0]).toLowerCase() === "load") {
+        return redis.scriptLoad(args[1]);
+      }
+      break;
+    case "evalsha":
+      return redis.evalsha(args[0], [args[2]], args.slice(3));
+    case "decr":
+      return redis.decr(args[0]);
+    case "del":
+      return redis.del(args[0]);
+    default:
+      throw new Error(`Unsupported Redis command: ${name}`);
+  }
+}
 
 function createLimiter({ max, message }) {
+  const store =
+    hasRedisConfig && !config.isTest
+      ? new RedisStore({
+          sendCommand: sendUpstashCommand,
+          prefix: "rate-limit:",
+        })
+      : undefined;
+
   return rateLimit({
     windowMs: config.rateLimit.windowMs,
     max,
+    store,
     standardHeaders: "draft-8",
     legacyHeaders: false,
     skip: () => config.isTest,

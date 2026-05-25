@@ -26,6 +26,8 @@ const schema = Joi.object({
   RATE_LIMIT_MAX: Joi.number().integer().positive(),
   AUTH_RATE_LIMIT_MAX: Joi.number().integer().positive(),
   PAYMENT_RATE_LIMIT_MAX: Joi.number().integer().positive(),
+  STRIPE_SECRET_KEY: Joi.string().allow("", null),
+  STRIPE_PUBLISHABLE_KEY: Joi.string().allow("", null),
   STRIPE_SKRT_KET_TST: Joi.string().allow("", null),
   STRIPE_PBLK_KET_TST: Joi.string().allow("", null),
   STRIPE_WEBHOOK_SECRET: Joi.string().allow("", null),
@@ -47,6 +49,8 @@ const schema = Joi.object({
   SENTRY_PROFILES_SAMPLE_RATE: Joi.number().min(0).max(1).default(0),
   SENTRY_SEND_DEFAULT_PII: Joi.boolean().truthy("true").falsy("false").default(false),
   DEBUG_IP_TOKEN: Joi.string().allow("", null),
+  UPSTASH_REDIS_REST_URL: Joi.string().uri().allow("", null),
+  UPSTASH_REDIS_REST_TOKEN: Joi.string().allow("", null),
 }).unknown(true);
 
 const { error, value: env } = schema.validate(process.env, {
@@ -70,19 +74,26 @@ const refreshTokenExpiresIn = env.REFRESH_TOKEN_EXPIRES_IN;
 const refreshTokenMaxAge = env.REFRESH_TOKEN_MAX_AGE;
 const refreshTokenExpiresInMs = parseDurationMs(refreshTokenExpiresIn, "REFRESH_TOKEN_EXPIRES_IN");
 const refreshTokenMaxAgeMs = parseDurationMs(refreshTokenMaxAge, "REFRESH_TOKEN_MAX_AGE");
-const productionOnlyEnv = [
-  "STRIPE_SKRT_KET_TST",
-  "STRIPE_PBLK_KET_TST",
-  "STRIPE_WEBHOOK_SECRET",
-  "CLOUDINARY_CLOUD_NAME",
-  "CLOUDINARY_API_KEY",
-  "CLOUDINARY_API_SECRET",
-  "ONE_SIGNAL_APP_ID",
-  "ONE_SIGNAL_REST_API_KEY",
-  "EMAIL_FROM",
-];
+const stripeSecretKey = env.STRIPE_SECRET_KEY || env.STRIPE_SKRT_KET_TST;
+const stripePublishableKey =
+  env.STRIPE_PUBLISHABLE_KEY || env.STRIPE_PBLK_KET_TST;
+const requiredProductionEnv = {
+  STRIPE_SECRET_KEY: stripeSecretKey,
+  STRIPE_PUBLISHABLE_KEY: stripePublishableKey,
+  STRIPE_WEBHOOK_SECRET: env.STRIPE_WEBHOOK_SECRET,
+  CLOUDINARY_CLOUD_NAME: env.CLOUDINARY_CLOUD_NAME,
+  CLOUDINARY_API_KEY: env.CLOUDINARY_API_KEY,
+  CLOUDINARY_API_SECRET: env.CLOUDINARY_API_SECRET,
+  ONE_SIGNAL_APP_ID: env.ONE_SIGNAL_APP_ID,
+  ONE_SIGNAL_REST_API_KEY: env.ONE_SIGNAL_REST_API_KEY,
+  EMAIL_FROM: env.EMAIL_FROM,
+  UPSTASH_REDIS_REST_URL: env.UPSTASH_REDIS_REST_URL,
+  UPSTASH_REDIS_REST_TOKEN: env.UPSTASH_REDIS_REST_TOKEN,
+};
 
-const missingProductionEnv = productionOnlyEnv.filter((key) => !env[key]);
+const missingProductionEnv = Object.entries(requiredProductionEnv)
+  .filter(([, value]) => !value)
+  .map(([key]) => key);
 const hasEmailProvider =
   Boolean(env.BREVO_API_KEY) ||
   Boolean(env.SMTP_HOST && env.SMTP_USER && env.SMTP_PASS);
@@ -202,9 +213,18 @@ module.exports = {
     sendDefaultPii: env.SENTRY_SEND_DEFAULT_PII,
   },
   stripe: {
-    secretKey: env.STRIPE_SKRT_KET_TST,
-    publishableKey: env.STRIPE_PBLK_KET_TST,
+    secretKey: stripeSecretKey,
+    publishableKey: stripePublishableKey,
     webhookSecret: env.STRIPE_WEBHOOK_SECRET,
+  },
+  cloudinary: {
+    cloudName: env.CLOUDINARY_CLOUD_NAME,
+    apiKey: env.CLOUDINARY_API_KEY,
+    apiSecret: env.CLOUDINARY_API_SECRET,
+  },
+  oneSignal: {
+    appId: env.ONE_SIGNAL_APP_ID,
+    restApiKey: env.ONE_SIGNAL_REST_API_KEY,
   },
   email: {
     host: env.SMTP_HOST,
@@ -214,5 +234,9 @@ module.exports = {
     pass: env.SMTP_PASS,
     from: env.EMAIL_FROM,
     brevoApiKey: env.BREVO_API_KEY,
+  },
+  redis: {
+    upstashRestUrl: env.UPSTASH_REDIS_REST_URL,
+    upstashRestToken: env.UPSTASH_REDIS_REST_TOKEN,
   },
 };

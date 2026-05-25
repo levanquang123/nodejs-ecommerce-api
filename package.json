@@ -16,6 +16,7 @@
   "dependencies": {
     "@onesignal/node-onesignal": "^5.4.0-beta1",
     "@sentry/node": "^10.48.0",
+    "@upstash/redis": "^1.38.0",
     "bcrypt": "^6.0.0",
     "body-parser": "^2.2.2",
     "cloudinary": "^2.9.0",
@@ -33,6 +34,7 @@
     "multer": "^2.1.1",
     "multer-storage-cloudinary": "^4.0.0",
     "nodemailer": "^8.0.7",
+    "rate-limit-redis": "^5.0.0",
     "stripe": "^20.3.1",
     "winston": "^3.19.0"
   },

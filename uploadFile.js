@@ -1,6 +1,7 @@
 const multer = require("multer");
 const cloudinary = require("cloudinary").v2;
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const config = require("./config/env");
 
 // 1. Cấu hình giới hạn file (5MB)
 const FILE_SIZE_LIMIT = 1024 * 1024 * 5;
@@ -8,9 +9,9 @@ const ALLOWED_MIME_TYPES = new Set(["image/jpeg", "image/png"]);
 
 // 2. Kết nối Cloudinary (Đảm bảo đã có biến môi trường trên Render)
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
+  cloud_name: config.cloudinary.cloudName,
+  api_key: config.cloudinary.apiKey,
+  api_secret: config.cloudinary.apiSecret,
 });
 
 // 3. Hàm tạo Storage an toàn (Sửa lỗi treo/xoay tròn)

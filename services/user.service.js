@@ -5,13 +5,16 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const config = require("../config/env");
 const emailService = require("./email.service");
+const { redis, hasRedisConfig } = require("./redis.service");
 
 const MIN_PASSWORD_LENGTH = 6;
 const REFRESH_TOKEN_SESSION_LIMIT = 10;
 const REFRESH_TOKEN_ROTATION_GRACE_MS = 60 * 1000;
 const EMAIL_VERIFICATION_TTL_MS = 10 * 60 * 1000;
+const EMAIL_VERIFICATION_TTL_SECONDS = Math.ceil(EMAIL_VERIFICATION_TTL_MS / 1000);
 const EMAIL_VERIFICATION_RESEND_COOLDOWN_MS = 60 * 1000;
 const EMAIL_VERIFICATION_MAX_ATTEMPTS = 5;
+const EMAIL_VERIFICATION_REDIS_PREFIX = "email-verification:";
 const RESERVED_EMAIL_DOMAINS = new Set([
   "example.com",
   "example.net",
@@ -87,6 +90,131 @@ function generateVerificationCode() {
   return String(crypto.randomInt(100000, 1000000));
 }
 
+function shouldUseRedisForEmailVerification() {
+  return hasRedisConfig && !config.isTest;
+}
+
+function assertEmailVerificationStoreAvailable() {
+  if (config.isProduction && !hasRedisConfig) {
+    throw createError("Email verification service is not configured.", 503);
+  }
+}
+
+function getEmailVerificationRedisKey(email) {
+  return `${EMAIL_VERIFICATION_REDIS_PREFIX}${email}`;
+}
+
+function normalizeVerificationRecord(record) {
+  if (!record) return null;
+
+  return {
+    ...record,
+    expiresAt: record.expiresAt ? new Date(record.expiresAt) : null,
+    lastSentAt: record.lastSentAt ? new Date(record.lastSentAt) : null,
+  };
+}
+
+async function findRegistrationVerification(email) {
+  assertEmailVerificationStoreAvailable();
+
+  if (shouldUseRedisForEmailVerification()) {
+    const value = await redis.get(getEmailVerificationRedisKey(email));
+    const record = typeof value === "string" ? JSON.parse(value) : value;
+    return normalizeVerificationRecord(record);
+  }
+
+  return await EmailVerification.findOne({ email, type: "register" }).select(
+    "+passwordHash +codeHash"
+  );
+}
+
+async function saveRegistrationVerification(email, data) {
+  assertEmailVerificationStoreAvailable();
+
+  if (shouldUseRedisForEmailVerification()) {
+    const record = {
+      email,
+      passwordHash: data.passwordHash,
+      codeHash: data.codeHash,
+      type: "register",
+      expiresAt: data.expiresAt.toISOString(),
+      lastSentAt: data.lastSentAt.toISOString(),
+      failedAttempts: data.failedAttempts || 0,
+    };
+
+    await redis.set(getEmailVerificationRedisKey(email), JSON.stringify(record), {
+      ex: EMAIL_VERIFICATION_TTL_SECONDS,
+    });
+
+    return normalizeVerificationRecord(record);
+  }
+
+  const verification =
+    (await EmailVerification.findOne({ email }).select("+passwordHash +codeHash")) ||
+    new EmailVerification({ email });
+
+  verification.passwordHash = data.passwordHash;
+  verification.codeHash = data.codeHash;
+  verification.type = "register";
+  verification.expiresAt = data.expiresAt;
+  verification.lastSentAt = data.lastSentAt;
+  verification.failedAttempts = data.failedAttempts || 0;
+  await verification.save();
+
+  return verification;
+}
+
+async function updateRegistrationVerification(email, changes) {
+  assertEmailVerificationStoreAvailable();
+
+  if (shouldUseRedisForEmailVerification()) {
+    const verification = await findRegistrationVerification(email);
+    if (!verification) return null;
+
+    const nextVerification = {
+      ...verification,
+      ...changes,
+    };
+
+    const expiresAt = nextVerification.expiresAt?.getTime?.() || 0;
+    const ttlSeconds = Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000));
+
+    await redis.set(
+      getEmailVerificationRedisKey(email),
+      JSON.stringify({
+        ...nextVerification,
+        expiresAt: nextVerification.expiresAt.toISOString(),
+        lastSentAt: nextVerification.lastSentAt.toISOString(),
+      }),
+      { ex: ttlSeconds }
+    );
+
+    return nextVerification;
+  }
+
+  const verification = await findRegistrationVerification(email);
+  if (!verification) return null;
+
+  Object.assign(verification, changes);
+  await verification.save();
+  return verification;
+}
+
+async function deleteRegistrationVerification(email, verification) {
+  assertEmailVerificationStoreAvailable();
+
+  if (shouldUseRedisForEmailVerification()) {
+    await redis.del(getEmailVerificationRedisKey(email));
+    return;
+  }
+
+  if (verification?._id) {
+    await EmailVerification.deleteOne({ _id: verification._id });
+  } else {
+    await EmailVerification.deleteOne({ email, type: "register" });
+  }
+}
+
 function assertDeliverableEmail(email) {
   if (config.isTest) return;
 
@@ -103,9 +231,7 @@ async function createOrRefreshRegistrationVerification({
   skipIfCoolingDown = false,
   awaitDelivery = true,
 }) {
-  const existing = await EmailVerification.findOne({ email }).select(
-    "+passwordHash +codeHash"
-  );
+  const existing = await findRegistrationVerification(email);
 
   if (
     existing &&
@@ -120,14 +246,13 @@ async function createOrRefreshRegistrationVerification({
 
   const code = generateVerificationCode();
   const now = new Date();
-  const verification = existing || new EmailVerification({ email });
-  verification.passwordHash = passwordHash;
-  verification.codeHash = hashToken(code);
-  verification.type = "register";
-  verification.expiresAt = new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS);
-  verification.lastSentAt = now;
-  verification.failedAttempts = 0;
-  await verification.save();
+  const verification = await saveRegistrationVerification(email, {
+    passwordHash,
+    codeHash: hashToken(code),
+    expiresAt: new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS),
+    lastSentAt: now,
+    failedAttempts: 0,
+  });
 
   const delivery = emailService.sendVerificationCode({
     to: email,
@@ -138,14 +263,14 @@ async function createOrRefreshRegistrationVerification({
     try {
       await delivery;
     } catch (error) {
-      verification.lastSentAt = new Date(0);
-      await verification.save();
+      await updateRegistrationVerification(email, { lastSentAt: new Date(0) });
       throw error;
     }
   } else {
     delivery.catch(async (error) => {
-      verification.lastSentAt = new Date(0);
-      await verification.save().catch(() => {});
+      await updateRegistrationVerification(email, {
+        lastSentAt: new Date(0),
+      }).catch(() => {});
       console.error(
         "Email verification delivery failed:",
         summarizeEmailDeliveryError(error)
@@ -400,12 +525,7 @@ exports.verifyEmail = async ({ email, code }) => {
     return sanitizeUser(existingUser);
   }
 
-  const verification = await EmailVerification.findOne({
-    email: normalizedEmail,
-    type: "register",
-  }).select(
-    "+passwordHash +codeHash"
-  );
+  const verification = await findRegistrationVerification(normalizedEmail);
 
   if (!verification) {
     throw createError("Invalid or expired verification code.", 400);
@@ -423,8 +543,9 @@ exports.verifyEmail = async ({ email, code }) => {
   }
 
   if (hashToken(normalizedCode) !== verification.codeHash) {
-    verification.failedAttempts += 1;
-    await verification.save();
+    await updateRegistrationVerification(normalizedEmail, {
+      failedAttempts: verification.failedAttempts + 1,
+    });
     throw createError("Invalid or expired verification code.", 400);
   }
 
@@ -434,7 +555,7 @@ exports.verifyEmail = async ({ email, code }) => {
   });
   user.emailVerified = true;
   await user.save();
-  await EmailVerification.deleteOne({ _id: verification._id });
+  await deleteRegistrationVerification(normalizedEmail, verification);
 
   return sanitizeUser(user);
 };
@@ -451,10 +572,7 @@ exports.resendEmailVerification = async ({ email }) => {
     return;
   }
 
-  const verification = await EmailVerification.findOne({
-    email: normalizedEmail,
-    type: "register",
-  }).select("+passwordHash +codeHash");
+  const verification = await findRegistrationVerification(normalizedEmail);
 
   if (!verification) return;
 

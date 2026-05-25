@@ -1,15 +1,15 @@
 const Notification = require("../model/notification");
 const OneSignal = require("@onesignal/node-onesignal");
+const config = require("../config/env");
 
 const configuration = OneSignal.createConfiguration({
-  restApiKey: process.env.ONE_SIGNAL_REST_API_KEY,
+  restApiKey: config.oneSignal.restApiKey,
 });
 
 const client = new OneSignal.DefaultApi(configuration);
-const APP_ID = process.env.ONE_SIGNAL_APP_ID;
 
 function assertOneSignalConfigured() {
-  if (!APP_ID || !process.env.ONE_SIGNAL_REST_API_KEY) {
+  if (!config.oneSignal.appId || !config.oneSignal.restApiKey) {
     throw new Error("Missing OneSignal env vars");
   }
 }
@@ -18,7 +18,7 @@ exports.sendNotification = async ({ title, description, imageUrl }) => {
   assertOneSignalConfigured();
 
   const notification = new OneSignal.Notification();
-  notification.app_id = APP_ID;
+  notification.app_id = config.oneSignal.appId;
   notification.contents = { en: description };
   notification.headings = { en: title };
   notification.included_segments = ["All"];
@@ -61,7 +61,7 @@ exports.sendToExternalUser = async ({
   if (!normalizedExternalId) return null;
 
   const notification = new OneSignal.Notification();
-  notification.app_id = APP_ID;
+  notification.app_id = config.oneSignal.appId;
   notification.contents = { en: description };
   notification.headings = { en: title };
   notification.include_aliases = {
@@ -90,7 +90,7 @@ exports.sendToExternalUser = async ({
 exports.trackNotification = async (id) => {
   assertOneSignalConfigured();
 
-  const response = await client.getNotification(APP_ID, id);
+  const response = await client.getNotification(config.oneSignal.appId, id);
 
   const stats = response.platform_delivery_stats;
 
