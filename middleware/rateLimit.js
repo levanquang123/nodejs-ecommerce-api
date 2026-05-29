@@ -24,12 +24,12 @@ async function sendUpstashCommand(...command) {
   }
 }
 
-function createLimiter({ max, message }) {
+function createLimiter({ max, message, prefix }) {
   const store =
     hasRedisConfig && !config.isTest
       ? new RedisStore({
           sendCommand: sendUpstashCommand,
-          prefix: "rate-limit:",
+          prefix: prefix || "rate-limit:",
         })
       : undefined;
 
@@ -53,14 +53,17 @@ function createLimiter({ max, message }) {
 exports.apiLimiter = createLimiter({
   max: config.rateLimit.apiMax,
   message: "Too many requests. Please try again later.",
+  prefix: "rate-limit:api:",
 });
 
 exports.authLimiter = createLimiter({
   max: config.rateLimit.authMax,
   message: "Too many authentication attempts. Please try again later.",
+  prefix: "rate-limit:auth:",
 });
 
 exports.paymentLimiter = createLimiter({
   max: config.rateLimit.paymentMax,
   message: "Too many payment requests. Please try again later.",
+  prefix: "rate-limit:payment:",
 });
