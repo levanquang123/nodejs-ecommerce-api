@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: nodejs-ecommerce-api
+    env: node
+    plan: free
+    region: singapore
+    buildCommand: npm install
+    startCommand: npm start
+    githubDeployments:
+      enabled: true
+      environment: production
